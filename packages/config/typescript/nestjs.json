@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "display": "DREAM5 — aplicaciones NestJS (API y worker)",
+  "extends": "./base.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "types": ["node"],
+    "sourceMap": true,
+    "declaration": false,
+    // NestJS necesita decoradores "legacy" y metadatos de tipos para la
+    // inyección de dependencias por constructor. Las clases inyectadas deben
+    // importarse como valores (nunca con `import type`).
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true
+  }
+}

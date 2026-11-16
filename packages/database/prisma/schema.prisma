@@ -1,0 +1,802 @@
+// -----------------------------------------------------------------------------
+// DREAM5 — Esquema relacional en PostgreSQL + Prisma ORM 7
+// -----------------------------------------------------------------------------
+// Garantiza aislamiento estricto entre ligas mediante `leagueId` en toda entidad
+// deportiva/económica y claves foráneas compuestas `(entidadId, leagueId)`.
+// -----------------------------------------------------------------------------
+
+generator client {
+  provider               = "prisma-client"
+  output                 = "../src/generated/prisma"
+  runtime                = "nodejs"
+  moduleFormat           = "esm"
+  importFileExtension    = "js"
+  generatedFileExtension = "ts"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserAccountRole {
+  USER
+  ADMIN
+}
+
+enum Position {
+  PG
+  SG
+  SF
+  PF
+  C
+}
+
+enum PlayerRole {
+  SUPERSTAR
+  STAR
+  STARTER
+  ROTATION
+  ROOKIE
+  BENCH
+}
+
+enum AvailabilityStatus {
+  HEALTHY
+  QUESTIONABLE
+  INJURED
+  SUSPENDED
+}
+
+enum LeagueRole {
+  PRESIDENT
+  MEMBER
+}
+
+enum LeagueStatus {
+  ACTIVE
+  COMPLETED
+}
+
+enum SeasonStatus {
+  ACTIVE
+  COMPLETED
+}
+
+enum MarketMode {
+  LEAGUE_ISOLATED
+  GLOBAL_HYBRID
+}
+
+enum MatchStatus {
+  SCHEDULED
+  IN_PROGRESS
+  FINAL
+}
+
+enum MatchEventType {
+  TIPOFF
+  RUN
+  CLUTCH
+  INJURY
+  EJECTION
+  OVERTIME
+  FINAL
+}
+
+enum LeagueMailCategory {
+  MATCH_RESULT
+  TRANSFER_SENT
+  TRANSFER_RECEIVED
+  TRANSFER_ACCEPTED
+  TRANSFER_REJECTED
+  INJURY
+  EJECTION
+  RETIREMENT_REPLACEMENT
+  SEASON_SUMMARY
+  PRESIDENT_PROMOTION
+}
+
+enum TransferStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  CANCELLED
+  EXPIRED
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+enum SimulationJobStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+model User {
+  id              String          @id @default(cuid())
+  email           String          @unique
+  pendingEmail    String?         @map("pending_email")
+  emailVerifiedAt DateTime?       @map("email_verified_at")
+  passwordHash    String          @map("password_hash")
+  role            UserAccountRole @default(USER)
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+
+  profile                UserProfile?
+  sessions               UserSession[]
+  presidedLeagues        League[]                @relation("LeaguePresident")
+  memberships            LeagueMember[]
+  sentInvitations        LeagueInvitation[]      @relation("InvitationSender")
+  receivedInvitations    LeagueInvitation[]      @relation("InvitationRecipient")
+  proposedTransfers      TransferOffer[]         @relation("TransferProposer")
+  emailVerificationCodes EmailVerificationCode[]
+  passwordResetTokens    PasswordResetToken[]
+
+  @@map("users")
+}
+
+model EmailVerificationCode {
+  id          String    @id @default(cuid())
+  userId      String    @map("user_id")
+  targetEmail String    @map("target_email")
+  purpose     String
+  codeHash    String    @map("code_hash")
+  expiresAt   DateTime  @map("expires_at")
+  consumedAt  DateTime? @map("consumed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose])
+  @@map("email_verification_codes")
+}
+
+model PasswordResetToken {
+  id         String    @id @default(cuid())
+  userId     String    @map("user_id")
+  tokenHash  String    @unique @map("token_hash")
+  expiresAt  DateTime  @map("expires_at")
+  consumedAt DateTime? @map("consumed_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+model UserProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique @map("user_id")
+  username        String   @unique
+  tag             String   @unique
+  initials        String
+  avatarUrl       String?  @map("avatar_url")
+  preferencesJson Json     @default("{\"tradeAlerts\":true,\"injuryAlerts\":true,\"lineupReminder\":true,\"compactTables\":false,\"themeMode\":\"dark\",\"accentColor\":\"orange\",\"language\":\"en\"}") @map("preferences_json")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profiles")
+}
+
+model UserSession {
+  id        String    @id @default(cuid())
+  userId    String    @map("user_id")
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("user_sessions")
+}
+
+// --- Catálogo Global Inmutable (30 equipos / 540 jugadores ficticios) -------
+
+model Team {
+  id           String @id @default(cuid())
+  code         String @unique
+  city         String
+  name         String
+  shortName    String @map("short_name")
+  conference   String
+  primaryColor String @map("primary_color")
+
+  templatePlayers Player[]
+  leagueTeams     LeagueTeam[]
+
+  @@map("teams")
+}
+
+model Player {
+  id                String     @id @default(cuid())
+  templateTeamId    String     @map("template_team_id")
+  slug              String     @unique
+  firstName         String     @map("first_name")
+  lastName          String     @map("last_name")
+  fullName          String     @map("full_name")
+  initials          String
+  position          Position
+  initialRole       PlayerRole @map("initial_role")
+  age               Int
+  basePriceMillions Float      @map("base_price_millions")
+  overallRating     Int        @map("overall_rating")
+  offense           Int
+  defense           Int
+  playmaking        Int
+  rebounding        Int
+  athleticism       Int
+  iq                Int
+
+  templateTeam Team             @relation(fields: [templateTeamId], references: [id], onDelete: Restrict)
+  instances    PlayerInstance[]
+
+  @@index([templateTeamId])
+  @@map("players")
+}
+
+// --- Entidades Aisladas por Liga (`league_id` obligatorio) -------------------
+
+model League {
+  id                String       @id @default(cuid())
+  name              String
+  presidentUserId   String       @map("president_user_id")
+  status            LeagueStatus @default(ACTIVE)
+  maxParticipants   Int          @default(30) @map("max_participants")
+  marketMode        MarketMode   @default(LEAGUE_ISOLATED) @map("market_mode")
+  gameClockAt       DateTime     @default(now()) @map("game_clock_at")
+  isAccelerated     Boolean      @default(false) @map("is_accelerated")
+  simulationSeed    String       @map("simulation_seed")
+  scoringConfigJson Json         @map("scoring_config_json")
+  createdAt         DateTime     @default(now()) @map("created_at")
+  updatedAt         DateTime     @updatedAt @map("updated_at")
+
+  president       User               @relation("LeaguePresident", fields: [presidentUserId], references: [id], onDelete: Restrict)
+  seasons         Season[]
+  members         LeagueMember[]
+  invitations     LeagueInvitation[]
+  teams           LeagueTeam[]
+  playerInstances PlayerInstance[]
+  rosterSlots     RosterSlot[]
+  lineups         Lineup[]
+  matches         Match[]
+  matchEvents     MatchEvent[]
+  playerStats     PlayerMatchStat[]
+  teamStats       TeamMatchStat[]
+  fantasyScores   FantasyScore[]
+  standings       Standing[]
+  transferOffers  TransferOffer[]
+  transactions    Transaction[]
+  transferHistory TransferHistory[]
+  injuries        Injury[]
+  suspensions     Suspension[]
+  marketHistory   MarketHistory[]
+  simulationJobs  SimulationJob[]
+  mails           LeagueMail[]
+
+  @@index([presidentUserId])
+  @@map("leagues")
+}
+
+model Season {
+  id                 String       @id @default(cuid())
+  leagueId           String       @map("league_id")
+  seasonNumber       Int          @map("season_number")
+  name               String
+  calendarYear       Int          @map("calendar_year")
+  calendarMonth      Int          @map("calendar_month")
+  daysInMonth        Int          @map("days_in_month")
+  totalRounds        Int          @default(58) @map("total_rounds")
+  currentRoundNumber Int          @default(0) @map("current_round_number")
+  status             SeasonStatus @default(ACTIVE)
+  playersAged        Boolean      @default(false) @map("players_aged")
+  startedAt          DateTime     @default(now()) @map("started_at")
+  endedAt            DateTime?    @map("ended_at")
+
+  league         League            @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  lineups        Lineup[]
+  matches        Match[]
+  playerStats    PlayerMatchStat[]
+  fantasyScores  FantasyScore[]
+  standings      Standing[]
+  simulationJobs SimulationJob[]
+  mails          LeagueMail[]
+
+  @@unique([leagueId, seasonNumber])
+  @@unique([id, leagueId])
+  @@map("seasons")
+}
+
+model LeagueTeam {
+  id                 String  @id @default(cuid())
+  leagueId           String  @map("league_id")
+  templateTeamId     String  @map("template_team_id")
+  name               String
+  shortName          String  @map("short_name")
+  code               String
+  budgetMillions     Float   @default(25.0) @map("budget_millions")
+  isCpuControlled    Boolean @default(true) @map("is_cpu_controlled")
+  totalFantasyPoints Float   @default(0) @map("total_fantasy_points")
+  wins               Int     @default(0)
+  losses             Int     @default(0)
+  rank               Int     @default(1)
+
+  league            League            @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  templateTeam      Team              @relation(fields: [templateTeamId], references: [id], onDelete: Restrict)
+  member            LeagueMember?
+  currentPlayers    PlayerInstance[]  @relation("PlayerCurrentTeam")
+  rosterSlots       RosterSlot[]
+  lineups           Lineup[]
+  homeMatches       Match[]           @relation("HomeLeagueTeam")
+  awayMatches       Match[]           @relation("AwayLeagueTeam")
+  matchEvents       MatchEvent[]
+  playerStats       PlayerMatchStat[]
+  teamStats         TeamMatchStat[]
+  fantasyScores     FantasyScore[]
+  standings         Standing[]
+  sentOffers        TransferOffer[]   @relation("TransferProposingTeam")
+  receivedOffers    TransferOffer[]   @relation("TransferReceivingTeam")
+  outgoingHistory   TransferHistory[] @relation("HistoryFromTeam")
+  incomingHistory   TransferHistory[] @relation("HistoryToTeam")
+  mails             LeagueMail[]
+
+  @@unique([leagueId, templateTeamId])
+  @@unique([leagueId, code])
+  @@unique([id, leagueId])
+  @@map("league_teams")
+}
+
+model LeagueMember {
+  id           String     @id @default(cuid())
+  leagueId     String     @map("league_id")
+  userId       String     @map("user_id")
+  leagueTeamId String     @map("league_team_id")
+  role         LeagueRole @default(MEMBER)
+  joinedAt     DateTime   @default(now()) @map("joined_at")
+
+  league League     @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  user   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team   LeagueTeam @relation(fields: [leagueTeamId, leagueId], references: [id, leagueId], onDelete: Restrict)
+
+  @@unique([leagueId, userId])
+  @@unique([leagueTeamId, leagueId])
+  @@index([userId])
+  @@map("league_members")
+}
+
+model LeagueInvitation {
+  id              String           @id @default(cuid())
+  leagueId        String           @map("league_id")
+  invitedByUserId String           @map("invited_by_user_id")
+  invitedUserId   String           @map("invited_user_id")
+  invitedTag      String           @map("invited_tag")
+  status          InvitationStatus @default(PENDING)
+  createdAt       DateTime         @default(now()) @map("created_at")
+  respondedAt     DateTime?        @map("responded_at")
+
+  league      League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  invitedBy   User   @relation("InvitationSender", fields: [invitedByUserId], references: [id], onDelete: Cascade)
+  invitedUser User   @relation("InvitationRecipient", fields: [invitedUserId], references: [id], onDelete: Cascade)
+
+  @@index([leagueId, status])
+  @@index([invitedUserId, status])
+  @@map("league_invitations")
+}
+
+model PlayerInstance {
+  id                  String             @id @default(cuid())
+  leagueId            String             @map("league_id")
+  templatePlayerId    String?            @map("template_player_id")
+  currentTeamId       String             @map("current_team_id")
+  name                String
+  initials            String
+  position            Position
+  role                PlayerRole
+  age                 Int
+  priceMillions       Float              @map("price_millions")
+  priceDeltaMillions  Float              @default(0) @map("price_delta_millions")
+  status              AvailabilityStatus @default(HEALTHY)
+  statusNote          String?            @map("status_note")
+  gamesOutRemaining   Int                @default(0) @map("games_out_remaining")
+  overallRating       Int                @map("overall_rating")
+  offense             Int
+  defense             Int
+  playmaking          Int
+  rebounding          Int
+  athleticism         Int
+  iq                  Int
+  seasonGamesPlayed   Int                @default(0) @map("season_games_played")
+  seasonFantasyPoints Float              @default(0) @map("season_fantasy_points")
+  seasonPtsAvg               Float              @default(0) @map("season_pts_avg")
+  seasonRebAvg               Float              @default(0) @map("season_reb_avg")
+  seasonAstAvg               Float              @default(0) @map("season_ast_avg")
+  tradeLockTeamId            String?            @map("trade_lock_team_id")
+  tradeLockUntilTeamMatches  Int?               @map("trade_lock_until_team_matches")
+  isRetired                  Boolean            @default(false) @map("is_retired")
+  retiredSeasonNumber        Int?               @map("retired_season_number")
+
+  league         League            @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  templatePlayer Player?           @relation(fields: [templatePlayerId], references: [id], onDelete: Restrict)
+  currentTeam    LeagueTeam        @relation("PlayerCurrentTeam", fields: [currentTeamId, leagueId], references: [id, leagueId], onDelete: Restrict)
+  rosterSlot     RosterSlot?
+  pgLineups      Lineup[]          @relation("LineupPg")
+  sgLineups      Lineup[]          @relation("LineupSg")
+  sfLineups      Lineup[]          @relation("LineupSf")
+  pfLineups      Lineup[]          @relation("LineupPf")
+  cLineups       Lineup[]          @relation("LineupC")
+  matchStats     PlayerMatchStat[]
+  matchEvents    MatchEvent[]
+  injuries       Injury[]
+  suspensions    Suspension[]
+  marketHistory  MarketHistory[]
+
+  @@unique([leagueId, templatePlayerId])
+  @@unique([id, leagueId])
+  @@index([leagueId, currentTeamId])
+  @@index([leagueId, isRetired, currentTeamId])
+  @@index([leagueId, position, role])
+  @@map("player_instances")
+}
+
+model RosterSlot {
+  id               String   @id @default(cuid())
+  leagueId         String   @map("league_id")
+  leagueTeamId     String   @map("league_team_id")
+  playerInstanceId String   @map("player_instance_id")
+  acquiredAt       DateTime @default(now()) @map("acquired_at")
+
+  league League         @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  team   LeagueTeam     @relation(fields: [leagueTeamId, leagueId], references: [id, leagueId], onDelete: Restrict)
+  player PlayerInstance @relation(fields: [playerInstanceId, leagueId], references: [id, leagueId], onDelete: Restrict)
+
+  @@unique([playerInstanceId, leagueId])
+  @@index([leagueId, leagueTeamId])
+  @@map("rosters")
+}
+
+model Lineup {
+  id           String   @id @default(cuid())
+  leagueId     String   @map("league_id")
+  seasonId     String   @map("season_id")
+  leagueTeamId String   @map("league_team_id")
+  roundNumber  Int      @map("round_number")
+  pgPlayerId   String?  @map("pg_player_id")
+  sgPlayerId   String?  @map("sg_player_id")
+  sfPlayerId   String?  @map("sf_player_id")
+  pfPlayerId   String?  @map("pf_player_id")
+  cPlayerId    String?  @map("c_player_id")
+  isLocked     Boolean  @default(false) @map("is_locked")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  league League          @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  season Season          @relation(fields: [seasonId, leagueId], references: [id, leagueId], onDelete: Restrict)
+  team   LeagueTeam      @relation(fields: [leagueTeamId, leagueId], references: [id, leagueId], onDelete: Restrict)
+  pg     PlayerInstance? @relation("LineupPg", fields: [pgPlayerId, leagueId], references: [id, leagueId], onDelete: NoAction)
+  sg     PlayerInstance? @relation("LineupSg", fields: [sgPlayerId, leagueId], references: [id, leagueId], onDelete: NoAction)
+  sf     PlayerInstance? @relation("LineupSf", fields: [sfPlayerId, leagueId], references: [id, leagueId], onDelete: NoAction)
+  pf     PlayerInstance? @relation("LineupPf", fields: [pfPlayerId, leagueId], references: [id, leagueId], onDelete: NoAction)
+  c      PlayerInstance? @relation("LineupC", fields: [cPlayerId, leagueId], references: [id, leagueId], onDelete: NoAction)
+
+  @@unique([leagueId, seasonId, leagueTeamId, roundNumber])
+  @@map("lineups")
+}
+
+model Match {
+  id            String      @id @default(cuid())
+  leagueId      String      @map("league_id")
+  seasonId      String      @map("season_id")
+  roundNumber   Int         @map("round_number")
+  scheduledAt   DateTime    @map("scheduled_at")
+  simulatedAt   DateTime?   @map("simulated_at")
+  status        MatchStatus @default(SCHEDULED)
+  homeTeamId    String      @map("home_team_id")
+  awayTeamId    String      @map("away_team_id")
+  homeScore         Int?        @map("home_score")
+  awayScore         Int?        @map("away_score")
+  overtimeCount     Int         @default(0) @map("overtime_count")
+  seed              String
+  winRewardPaid     Boolean     @default(false) @map("win_reward_paid")
+  winRewardMillions Float?      @map("win_reward_millions")
+
+  league      League            @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  season      Season            @relation(fields: [seasonId, leagueId], references: [id, leagueId], onDelete: Restrict)
+  homeTeam    LeagueTeam        @relation("HomeLeagueTeam", fields: [homeTeamId, leagueId], references: [id, leagueId], onDelete: Restrict)
+  awayTeam    LeagueTeam        @relation("AwayLeagueTeam", fields: [awayTeamId, leagueId], references: [id, leagueId], onDelete: Restrict)
+  events      MatchEvent[]
+  playerStats PlayerMatchStat[]
+  teamStats   TeamMatchStat[]
+  injuries    Injury[]
+  suspensions Suspension[]
+
+  @@unique([id, leagueId])
+  @@index([leagueId, seasonId, roundNumber])
+  @@index([leagueId, status, scheduledAt])
+  @@map("matches")
+}
+
+model MatchEvent {
+  id               String         @id @default(cuid())
+  leagueId         String         @map("league_id")
+  matchId          String         @map("match_id")
+  quarter          Int
+  clockLabel       String         @map("clock_label")
+  eventType        MatchEventType @map("event_type")
+  playerInstanceId String?        @map("player_instance_id")
+  leagueTeamId     String?        @map("league_team_id")
+  description      String
+
+  league League          @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  match  Match           @relation(fields: [matchId, leagueId], references: [id, leagueId], onDelete: Restrict)
+  player PlayerInstance? @relation(fields: [playerInstanceId, leagueId], references: [id, leagueId], onDelete: NoAction)
+  team   LeagueTeam?     @relation(fields: [leagueTeamId, leagueId], references: [id, leagueId], onDelete: NoAction)
+
+  @@index([leagueId, matchId])
+  @@map("match_events")
+}
+
+model PlayerMatchStat {
+  id               String  @id @default(cuid())
+  leagueId         String  @map("league_id")
+  seasonId         String  @map("season_id")
+  matchId          String  @map("match_id")
+  roundNumber      Int     @map("round_number")
+  leagueTeamId     String  @map("league_team_id")
+  playerInstanceId String  @map("player_instance_id")
+  minutes          Int
+  pts              Int
+  reb              Int
+  ast              Int
+  stl              Int
+  blk              Int
+  tov              Int
+  pf               Int
+  fantasyPoints    Float   @map("fantasy_points")
+  wasStarter       Boolean @map("was_starter")
+  ejected          Boolean @default(false)
+  injured          Boolean @default(false)
+
+  league League         @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  season Season         @relation(fields: [seasonId, leagueId], references: [id, leagueId], onDelete: Restrict)
+  match  Match          @relation(fields: [matchId, leagueId], references: [id, leagueId], onDelete: Restrict)
+  team   LeagueTeam     @relation(fields: [leagueTeamId, leagueId], references: [id, leagueId], onDelete: Restrict)
+  player PlayerInstance @relation(fields: [playerInstanceId, leagueId], references: [id, leagueId], onDelete: Restrict)
+
+  @@unique([matchId, playerInstanceId])
+  @@index([leagueId, roundNumber])
+  @@index([leagueId, playerInstanceId])
+  @@map("player_match_stats")
+}
+
+model TeamMatchStat {
+  id           String @id @default(cuid())
+  leagueId     String @map("league_id")
+  matchId      String @map("match_id")
+  leagueTeamId String @map("league_team_id")
+  pts          Int
+  reb          Int
+  ast          Int
+  stl          Int
+  blk          Int
+  tov          Int
+  pf           Int
+
+  league League     @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  match  Match      @relation(fields: [matchId, leagueId], references: [id, leagueId], onDelete: Restrict)
+  team   LeagueTeam @relation(fields: [leagueTeamId, leagueId], references: [id, leagueId], onDelete: Restrict)
+
+  @@unique([matchId, leagueTeamId])
+  @@map("team_match_stats")
+}
+
+model FantasyScore {
+  id            String   @id @default(cuid())
+  leagueId      String   @map("league_id")
+  seasonId      String   @map("season_id")
+  roundNumber   Int      @map("round_number")
+  leagueTeamId  String   @map("league_team_id")
+  totalFp       Float    @map("total_fp")
+  breakdownJson Json     @map("breakdown_json")
+  calculatedAt  DateTime @default(now()) @map("calculated_at")
+
+  league League     @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  season Season     @relation(fields: [seasonId, leagueId], references: [id, leagueId], onDelete: Restrict)
+  team   LeagueTeam @relation(fields: [leagueTeamId, leagueId], references: [id, leagueId], onDelete: Restrict)
+
+  @@unique([leagueId, seasonId, roundNumber, leagueTeamId])
+  @@map("fantasy_scores")
+}
+
+model Standing {
+  id              String   @id @default(cuid())
+  leagueId        String   @map("league_id")
+  seasonId        String   @map("season_id")
+  leagueTeamId    String   @map("league_team_id")
+  rank            Int
+  fantasyPoints   Float    @default(0) @map("fantasy_points")
+  lastRoundFp     Float    @default(0) @map("last_round_fp")
+  avgFp           Float    @default(0) @map("avg_fp")
+  wins            Int      @default(0)
+  losses          Int      @default(0)
+  lastFiveResults String[] @default([]) @map("last_five_results")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  league League     @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  season Season     @relation(fields: [seasonId, leagueId], references: [id, leagueId], onDelete: Restrict)
+  team   LeagueTeam @relation(fields: [leagueTeamId, leagueId], references: [id, leagueId], onDelete: Restrict)
+
+  @@unique([leagueId, seasonId, leagueTeamId])
+  @@index([leagueId, seasonId, rank])
+  @@map("standings")
+}
+
+model TransferOffer {
+  id                    String         @id @default(cuid())
+  leagueId              String         @map("league_id")
+  proposingTeamId       String         @map("proposing_team_id")
+  receivingTeamId       String         @map("receiving_team_id")
+  proposedByUserId      String?        @map("proposed_by_user_id")
+  offeredPlayerIds      String[]       @map("offered_player_ids")
+  requestedPlayerIds    String[]       @map("requested_player_ids")
+  cashOfferedMillions   Float          @default(0) @map("cash_offered_millions")
+  cashRequestedMillions Float          @default(0) @map("cash_requested_millions")
+  status                TransferStatus @default(PENDING)
+  responseNote          String?        @map("response_note")
+  expiresAt             DateTime       @map("expires_at")
+  createdAt             DateTime       @default(now()) @map("created_at")
+  respondedAt           DateTime?      @map("responded_at")
+  rejectedGameClockAt   DateTime?      @map("rejected_game_clock_at")
+  rejectedAtTeamMatches Int?           @map("rejected_at_team_matches")
+
+  league        League           @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  proposingTeam LeagueTeam       @relation("TransferProposingTeam", fields: [proposingTeamId, leagueId], references: [id, leagueId], onDelete: Restrict)
+  receivingTeam LeagueTeam       @relation("TransferReceivingTeam", fields: [receivingTeamId, leagueId], references: [id, leagueId], onDelete: Restrict)
+  proposedBy    User?            @relation("TransferProposer", fields: [proposedByUserId], references: [id], onDelete: SetNull)
+  transaction   Transaction?
+  history       TransferHistory?
+
+  @@index([leagueId, status])
+  @@index([leagueId, proposingTeamId])
+  @@index([leagueId, receivingTeamId])
+  @@map("transfer_offers")
+}
+
+model Transaction {
+  id             String   @id @default(cuid())
+  leagueId       String   @map("league_id")
+  offerId        String   @unique @map("offer_id")
+  idempotencyKey String   @unique @map("idempotency_key")
+  payloadJson    Json     @map("payload_json")
+  executedAt     DateTime @default(now()) @map("executed_at")
+
+  league League        @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  offer  TransferOffer @relation(fields: [offerId], references: [id], onDelete: Restrict)
+
+  @@index([leagueId, executedAt])
+  @@map("transactions")
+}
+
+model TransferHistory {
+  id                    String   @id @default(cuid())
+  leagueId              String   @map("league_id")
+  offerId               String   @unique @map("offer_id")
+  fromTeamId            String   @map("from_team_id")
+  toTeamId              String   @map("to_team_id")
+  movedPlayerIds        String[] @map("moved_player_ids")
+  cashTransferredNet    Float    @default(0) @map("cash_transferred_net")
+  summary               String
+  executedAt            DateTime @default(now()) @map("executed_at")
+
+  league   League        @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  offer    TransferOffer @relation(fields: [offerId], references: [id], onDelete: Restrict)
+  fromTeam LeagueTeam    @relation("HistoryFromTeam", fields: [fromTeamId, leagueId], references: [id, leagueId], onDelete: Restrict)
+  toTeam   LeagueTeam    @relation("HistoryToTeam", fields: [toTeamId, leagueId], references: [id, leagueId], onDelete: Restrict)
+
+  @@index([leagueId, executedAt])
+  @@map("transfer_history")
+}
+
+model Injury {
+  id               String    @id @default(cuid())
+  leagueId         String    @map("league_id")
+  playerInstanceId String    @map("player_instance_id")
+  matchId          String?   @map("match_id")
+  reason           String
+  gamesRemaining   Int       @map("games_remaining")
+  active           Boolean   @default(true)
+  createdAt        DateTime  @default(now()) @map("created_at")
+  resolvedAt       DateTime? @map("resolved_at")
+
+  league League         @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  player PlayerInstance @relation(fields: [playerInstanceId, leagueId], references: [id, leagueId], onDelete: Restrict)
+  match  Match?         @relation(fields: [matchId, leagueId], references: [id, leagueId], onDelete: NoAction)
+
+  @@index([leagueId, active])
+  @@map("injuries")
+}
+
+model Suspension {
+  id               String    @id @default(cuid())
+  leagueId         String    @map("league_id")
+  playerInstanceId String    @map("player_instance_id")
+  matchId          String?   @map("match_id")
+  reason           String
+  gamesRemaining   Int       @map("games_remaining")
+  active           Boolean   @default(true)
+  createdAt        DateTime  @default(now()) @map("created_at")
+  resolvedAt       DateTime? @map("resolved_at")
+
+  league League         @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  player PlayerInstance @relation(fields: [playerInstanceId, leagueId], references: [id, leagueId], onDelete: Restrict)
+  match  Match?         @relation(fields: [matchId, leagueId], references: [id, leagueId], onDelete: NoAction)
+
+  @@index([leagueId, active])
+  @@map("suspensions")
+}
+
+model MarketHistory {
+  id               String   @id @default(cuid())
+  leagueId         String   @map("league_id")
+  playerInstanceId String   @map("player_instance_id")
+  priceMillions    Float    @map("price_millions")
+  deltaMillions    Float    @map("delta_millions")
+  reason           String
+  recordedAt       DateTime @default(now()) @map("recorded_at")
+
+  league League         @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  player PlayerInstance @relation(fields: [playerInstanceId, leagueId], references: [id, leagueId], onDelete: Restrict)
+
+  @@index([leagueId, playerInstanceId, recordedAt])
+  @@map("market_history")
+}
+
+model SimulationJob {
+  id            String              @id @default(cuid())
+  leagueId      String              @map("league_id")
+  seasonId      String?             @map("season_id")
+  jobType       String              @map("job_type")
+  targetRound   Int?                @map("target_round")
+  targetMatchId String?             @map("target_match_id")
+  bullmqJobId   String?             @map("bullmq_job_id")
+  status        SimulationJobStatus @default(QUEUED)
+  seed          String
+  startedAt     DateTime            @default(now()) @map("started_at")
+  finishedAt    DateTime?           @map("finished_at")
+  errorMessage  String?             @map("error_message")
+
+  league League  @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  season Season? @relation(fields: [seasonId, leagueId], references: [id, leagueId], onDelete: NoAction)
+
+  @@index([leagueId, startedAt])
+  @@map("simulation_jobs")
+}
+
+model LeagueMail {
+  id           String             @id @default(cuid())
+  leagueId     String             @map("league_id")
+  seasonId     String             @map("season_id")
+  leagueTeamId String             @map("league_team_id")
+  roundNumber  Int?               @map("round_number")
+  category     LeagueMailCategory
+  subject      String
+  body         String
+  metadataJson Json?              @map("metadata_json")
+  isRead       Boolean            @default(false) @map("is_read")
+  createdAt    DateTime           @default(now()) @map("created_at")
+
+  league League     @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  season Season     @relation(fields: [seasonId, leagueId], references: [id, leagueId], onDelete: Cascade)
+  team   LeagueTeam @relation(fields: [leagueTeamId, leagueId], references: [id, leagueId], onDelete: Cascade)
+
+  @@index([leagueId, leagueTeamId, createdAt])
+  @@index([leagueId, seasonId])
+  @@map("league_mails")
+}

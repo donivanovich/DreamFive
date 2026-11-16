@@ -1,0 +1,11 @@
+{
+  "extends": "@dream5/config/typescript/node-library.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    // El motor debe ser portable: no se permiten tipos de Node.js en su API.
+    "types": []
+  },
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts", "src/**/*.spec.ts"]
+}

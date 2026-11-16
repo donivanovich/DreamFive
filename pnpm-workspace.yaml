@@ -1,0 +1,58 @@
+# ---------------------------------------------------------------------------
+# DREAM5 — configuración del workspace de pnpm
+# ---------------------------------------------------------------------------
+# Toda la configuración de pnpm (excepto credenciales de registro) vive aquí.
+# Las versiones compartidas entre varios paquetes se centralizan en `catalog`
+# para garantizar una única versión por dependencia en todo el monorepo.
+# ---------------------------------------------------------------------------
+
+packages:
+  - apps/*
+  - packages/*
+
+# --- Política de instalación -------------------------------------------------
+# Versiones exactas (sin ^ ni ~): el lockfile y los package.json coinciden.
+savePrefix: ''
+# Falla si la versión de Node.js/pnpm no cumple `engines`.
+engineStrict: true
+# Las incompatibilidades de peers son errores, no avisos (nada de --force).
+strictPeerDependencies: true
+autoInstallPeers: false
+# Los paquetes internos se resuelven siempre desde el workspace.
+linkWorkspacePackages: true
+# Mitigación de ataques de cadena de suministro: no instalar versiones
+# publicadas hace menos de 24 horas (valor en minutos).
+minimumReleaseAge: 1440
+
+# --- Scripts de instalación ----------------------------------------------------
+# pnpm bloquea por defecto los scripts de postinstall. Solo se permiten los
+# estrictamente necesarios y revisados.
+allowBuilds:
+  '@prisma/engines': true
+  '@scarf/scarf': false
+  '@swc/core': true
+  esbuild: true
+  msgpackr-extract: false
+  prisma: true
+
+# --- Catálogo de versiones compartidas -----------------------------------------
+catalog:
+  '@nestjs/common': 12.4.2
+  '@nestjs/core': 12.4.2
+  '@nestjs/bullmq': 12.0.1
+  '@nestjs/testing': 12.4.2
+  '@swc/core': 1.16.22
+  '@types/node': 24.19.2
+  bullmq: 6.7.5
+  concurrently: 10.0.7
+  ioredis: 6.0.0
+  nestjs-pino: 5.3.1
+  pino: 10.4.0
+  pino-http: 11.0.0
+  pino-pretty: 13.2.0
+  reflect-metadata: 0.2.2
+  rxjs: 7.8.2
+  typescript: 6.0.3
+  unplugin-swc: 2.0.0
+  vitest: 5.1.0
+  zod: 4.6.7

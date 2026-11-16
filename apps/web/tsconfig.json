@@ -1,0 +1,10 @@
+{
+  "extends": "@dream5/config/typescript/react-app.json",
+  "compilerOptions": {
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+    "types": ["vite/client", "node"]
+  },
+  "include": ["src", "e2e", "*.config.ts"]
+}

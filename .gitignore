@@ -1,0 +1,55 @@
+# --- Dependencias ---
+node_modules/
+.pnpm-store/
+
+# --- Artefactos de build ---
+dist/
+build/
+.output/
+.nitro/
+.tanstack/
+.vinxi/
+*.tsbuildinfo
+
+# --- Cliente Prisma generado (se regenera con `pnpm db:generate`) ---
+packages/database/src/generated/
+
+# --- Variables de entorno y secretos ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+
+# --- Pruebas y cobertura ---
+coverage/
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
+# --- Logs ---
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# --- Docker (overrides locales de cada desarrollador) ---
+docker-compose.override.yml
+
+# --- Editores y sistema operativo ---
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Varios ---
+.cache/
+tmp/
+*.pid

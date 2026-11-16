@@ -1,0 +1,230 @@
+# -----------------------------------------------------------------------------
+# DREAM5 — Docker Compose (configuración base / producción local)
+# -----------------------------------------------------------------------------
+# Uso:
+#   cp .env.example .env    # y sustituye las credenciales locales si procede
+#   docker compose up -d --build
+#   # `migrate` y `seed` se ejecutan automáticamente antes de levantar API/Worker/Web
+#
+# Redes:
+#   * backend  (internal): PostgreSQL, Redis, API y worker. Sin salida a
+#     Internet y sin puertos publicados para PostgreSQL ni Redis.
+#   * edge: red de acceso para web y API (puertos publicados en 127.0.0.1).
+#
+# Para desarrollo con las apps en el host, ver docker-compose.dev.yml.
+# -----------------------------------------------------------------------------
+
+name: dream5
+
+x-app-hardening: &app-hardening
+  restart: unless-stopped
+  read_only: true
+  tmpfs:
+    - /tmp:size=16m,mode=1777
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  init: false
+  logging:
+    driver: json-file
+    options:
+      max-size: '10m'
+      max-file: '3'
+
+x-app-build: &app-build
+  context: .
+  dockerfile: infrastructure/docker/node.Dockerfile
+
+services:
+  postgres:
+    image: postgres:18.6-alpine3.24
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?Define POSTGRES_USER en .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env}
+      POSTGRES_DB: ${POSTGRES_DB:?Define POSTGRES_DB en .env}
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    volumes:
+      # PostgreSQL 18 almacena los datos en /var/lib/postgresql/<versión>/docker.
+      - postgres-data:/var/lib/postgresql
+    networks:
+      - backend
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    security_opt:
+      - no-new-privileges:true
+    shm_size: 128m
+
+  redis:
+    image: redis:8.8.4-alpine3.23
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Define REDIS_PASSWORD en .env}
+    # La contraseña se pasa por variable de entorno al shell del contenedor.
+    # AOF activado para que los trabajos de BullMQ sobrevivan a reinicios.
+    # `noeviction` es obligatorio para BullMQ (nunca debe expulsar claves).
+    command:
+      - sh
+      - -c
+      - >-
+        exec redis-server
+        --requirepass "$${REDIS_PASSWORD}"
+        --appendonly yes
+        --maxmemory-policy noeviction
+        --protected-mode yes
+    volumes:
+      - redis-data:/data
+    networks:
+      - backend
+    healthcheck:
+      test: ['CMD-SHELL', 'REDISCLI_AUTH="$${REDIS_PASSWORD}" redis-cli ping | grep -q PONG']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+
+  api:
+    <<: *app-hardening
+    build:
+      <<: *app-build
+      target: api
+    image: dream5/api:local
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      API_HOST: 0.0.0.0
+      API_PORT: 3001
+      API_CORS_ORIGINS: ${API_CORS_ORIGINS:?Define API_CORS_ORIGINS en .env}
+      API_TRUST_PROXY: ${API_TRUST_PROXY:-false}
+      API_SWAGGER_ENABLED: ${API_SWAGGER_ENABLED:-false}
+      AUTH_SESSION_TTL_HOURS: ${AUTH_SESSION_TTL_HOURS:-168}
+      AUTH_COOKIE_NAME: ${AUTH_COOKIE_NAME:-dream5_session}
+      DEV_TOOLS_ENABLED: ${DEV_TOOLS_ENABLED:-false}
+      RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-60000}
+      RATE_LIMIT_MAX_REQUESTS: ${RATE_LIMIT_MAX_REQUESTS:-120}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+      DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-10}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_DB: ${REDIS_DB:-0}
+      QUEUE_PREFIX: ${QUEUE_PREFIX:-dream5}
+      WEB_PUBLIC_URL: ${WEB_PUBLIC_URL:-http://localhost:3100}
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_SECURE: ${SMTP_SECURE:-true}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-DREAM5 <no-reply@dream5.local>}
+      UPLOAD_DIR: /app/uploads
+    volumes:
+      - api-uploads:/app/uploads
+    ports:
+      - '127.0.0.1:${API_PORT:-3001}:3001'
+    networks:
+      - backend
+      - edge
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  worker:
+    <<: *app-hardening
+    build:
+      <<: *app-build
+      target: worker
+    image: dream5/worker:local
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+      DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-10}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_DB: ${REDIS_DB:-0}
+      QUEUE_PREFIX: ${QUEUE_PREFIX:-dream5}
+      WORKER_HEARTBEAT_FILE: /tmp/worker.heartbeat
+      WORKER_HEARTBEAT_INTERVAL_MS: ${WORKER_HEARTBEAT_INTERVAL_MS:-10000}
+      WORKER_SCHEDULER_INTERVAL_MS: ${WORKER_SCHEDULER_INTERVAL_MS:-30000}
+    networks:
+      - backend
+    # Tiempo para que los trabajos en curso terminen antes de SIGKILL.
+    stop_grace_period: 30s
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  web:
+    <<: *app-hardening
+    build:
+      <<: *app-build
+      target: web
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:3001}
+        VITE_DEV_TOOLS_ENABLED: ${VITE_DEV_TOOLS_ENABLED:-false}
+    image: dream5/web:local
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOST: 0.0.0.0
+    ports:
+      - '127.0.0.1:${WEB_PORT:-3000}:3000'
+    networks:
+      - edge
+    depends_on:
+      api:
+        condition: service_healthy
+
+  migrate:
+    build:
+      <<: *app-build
+      target: migrate
+    image: dream5/migrate:local
+    restart: 'no'
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+    networks:
+      - backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+
+  seed:
+    build:
+      <<: *app-build
+      target: seed
+    image: dream5/seed:local
+    restart: 'no'
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+    networks:
+      - backend
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  backend:
+    internal: true
+  edge: {}
+
+volumes:
+  postgres-data:
+  redis-data:
+  api-uploads:

@@ -1,0 +1,124 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '24.22.3'
+  CI: true
+
+jobs:
+  quality:
+    name: Calidad, compilación y pruebas unitarias
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v4
+
+      - name: Instalar pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Instalar dependencias (lockfile congelado)
+        run: pnpm install --frozen-lockfile
+
+      - name: Validar esquema Prisma
+        run: pnpm run db:validate
+
+      - name: Comprobar formato (Prettier)
+        run: pnpm run format:check
+
+      - name: Comprobar linter (ESLint)
+        run: pnpm run lint
+
+      - name: Comprobar tipos (TypeScript estricto)
+        run: pnpm run typecheck
+
+      - name: Compilar aplicaciones y paquetes
+        run: pnpm run build
+
+      - name: Ejecutar pruebas unitarias (Vitest)
+        run: pnpm run test
+
+  e2e:
+    name: Pruebas E2E (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: quality
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v4
+
+      - name: Instalar pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Instalar dependencias (lockfile congelado)
+        run: pnpm install --frozen-lockfile
+
+      - name: Instalar navegador Chromium para Playwright
+        run: pnpm --filter @dream5/web exec playwright install --with-deps chromium
+
+      - name: Ejecutar pruebas E2E
+        run: pnpm run test:e2e
+
+      - name: Subir informe de Playwright en caso de fallo
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report/
+          retention-days: 7
+
+  docker-and-audit:
+    name: Validación Docker y auditoría de dependencias
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v4
+
+      - name: Instalar pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Instalar dependencias (lockfile congelado)
+        run: pnpm install --frozen-lockfile
+
+      - name: Auditar dependencias de producción
+        run: pnpm audit --prod --audit-level=high
+
+      - name: Validar sintaxis de Docker Compose
+        env:
+          POSTGRES_USER: ci_user
+          POSTGRES_PASSWORD: ci-placeholder-password
+          POSTGRES_DB: dream5_ci
+          REDIS_PASSWORD: ci-placeholder-redis-password
+          API_CORS_ORIGINS: http://localhost:3000
+        run: docker compose config --quiet

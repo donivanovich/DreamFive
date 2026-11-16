@@ -1,0 +1,254 @@
+/*
+ * Hoja de estilos global de DREAM5.
+ * Tailwind CSS v4 (configuración CSS-first) + tokens visuales dark-first
+ * alineados con la referencia de producto.
+ */
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+:root,
+.dark {
+  --radius: 0.5rem;
+  --background: #0b1016;
+  --foreground: #f8fafc;
+  --sidebar: #080c11;
+  --card: #0d141d;
+  --surface-deep: #080c11;
+  --surface-elevated: #0d141d;
+  --card-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.4);
+  --tone-success: #34d399;
+  --toast-success-bg: #064e3b;
+  --toast-success-border: #10b981;
+  --tone-warning: #fbbf24;
+  --tone-danger: #f87171;
+  --tone-info: #38bdf8;
+  --cyan: #0be5ff;
+  --card-foreground: #f8fafc;
+  --popover: #101924;
+  --popover-foreground: #f8fafc;
+  --primary: #ff8800;
+  --primary-foreground: #0b1016;
+  --secondary: #161f2b;
+  --secondary-foreground: #e2e8f0;
+  --muted: #141c27;
+  --muted-foreground: #8b9bb0;
+  --accent: #182332;
+  --accent-foreground: #f8fafc;
+  --destructive: #ef4444;
+  --border: #1d2836;
+  --input: #1d2836;
+  --ring: #ff8800;
+  --cyan: #0be5ff;
+  --positive: #22c55e;
+  --warning: #eab308;
+}
+
+@theme inline {
+  --font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Barlow Condensed', 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+  --radius-xl: calc(var(--radius) + 6px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-sidebar: var(--sidebar);
+  --color-card: var(--card);
+  --color-surface-deep: var(--surface-deep);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-cyan: var(--cyan);
+  --color-positive: var(--positive);
+  --color-warning: var(--warning);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    color-scheme: dark;
+    scrollbar-gutter: stable;
+    overflow-x: clip;
+  }
+
+  body {
+    @apply bg-background font-sans text-foreground antialiased selection:bg-primary/30 selection:text-foreground;
+    overflow-x: clip;
+  }
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Barra de desplazamiento discreta para tablas y listas en tema oscuro */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--background);
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1f2b3a;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #2f4056;
+}
+
+.dream5-table-scroll {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: #475569 transparent;
+}
+
+.dream5-table-scroll::-webkit-scrollbar {
+  height: 8px;
+}
+
+.dream5-table-scroll::-webkit-scrollbar-track {
+  background: color-mix(in srgb, var(--surface-deep) 80%, transparent);
+  border-radius: 9999px;
+}
+
+.dream5-table-scroll::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--muted-foreground) 45%, transparent);
+  border-radius: 9999px;
+}
+
+.dream5-table-scroll::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--muted-foreground) 70%, transparent);
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+  --background: #ffffff;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+  --secondary: #f1f5f9;
+  --secondary-foreground: #0f172a;
+  --muted: #f1f5f9;
+  --muted-foreground: #475569;
+  --accent: #e2e8f0;
+  --accent-foreground: #0f172a;
+  --border: #e2e8f0;
+  --input: #cbd5e1;
+  --sidebar: #f8fafc;
+  --sidebar-foreground: #0f172a;
+  --surface-deep: #f8fafc;
+  --surface-elevated: #ffffff;
+  --card-shadow: 0 2px 14px -2px rgba(15, 23, 42, 0.08);
+  --tone-success: #047857;
+  --toast-success-bg: #ecfdf5;
+  --toast-success-border: #10b981;
+  --tone-warning: #b45309;
+  --tone-danger: #dc2626;
+  --tone-info: #0369a1;
+  --cyan: #0284c7;
+}
+
+:root[data-accent='orange'] {
+  --primary: #ff8800;
+  --primary-foreground: #080c11;
+  --ring: #ff8800;
+}
+
+:root[data-theme='light'][data-accent='orange'] {
+  --primary: #ea580c;
+  --primary-foreground: #ffffff;
+  --ring: #ea580c;
+}
+
+:root[data-accent='blue'] {
+  --primary: #3b82f6;
+  --primary-foreground: #ffffff;
+  --ring: #3b82f6;
+}
+
+:root[data-theme='light'][data-accent='blue'] {
+  --primary: #2563eb;
+  --primary-foreground: #ffffff;
+  --ring: #2563eb;
+}
+
+:root[data-accent='green'] {
+  --primary: #22c55e;
+  --primary-foreground: #052e16;
+  --ring: #22c55e;
+}
+
+:root[data-theme='light'][data-accent='green'] {
+  --primary: #16a34a;
+  --primary-foreground: #ffffff;
+  --ring: #16a34a;
+}
+
+:root[data-accent='red'] {
+  --primary: #ef4444;
+  --primary-foreground: #ffffff;
+  --ring: #ef4444;
+}
+
+:root[data-theme='light'][data-accent='red'] {
+  --primary: #dc2626;
+  --primary-foreground: #ffffff;
+  --ring: #dc2626;
+}
+
+:root[data-accent='pink'] {
+  --primary: #ec4899;
+  --primary-foreground: #ffffff;
+  --ring: #ec4899;
+}
+
+:root[data-theme='light'][data-accent='pink'] {
+  --primary: #db2777;
+  --primary-foreground: #ffffff;
+  --ring: #db2777;
+}
+
+:root[data-accent='purple'] {
+  --primary: #a855f7;
+  --primary-foreground: #ffffff;
+  --ring: #a855f7;
+}
+
+:root[data-theme='light'][data-accent='purple'] {
+  --primary: #9333ea;
+  --primary-foreground: #ffffff;
+  --ring: #9333ea;
+}

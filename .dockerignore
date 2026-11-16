@@ -1,0 +1,32 @@
+# El contexto de build de Docker es la raíz del monorepo. Se excluye todo lo
+# que no sea necesario para compilar, y en especial cualquier secreto.
+**/node_modules
+**/dist
+**/.output
+**/.tanstack
+**/coverage
+**/test-results
+**/playwright-report
+**/*.tsbuildinfo
+**/*.log
+packages/database/src/generated
+
+.git
+.github
+.vscode
+.idea
+docs
+infrastructure/monitoring
+**/README.md
+
+.env
+.env.*
+!.env.example
+**/*.pem
+**/*.key
+secrets
+
+docker-compose*.yml
+**/Dockerfile
+**/*.Dockerfile
+.dockerignore

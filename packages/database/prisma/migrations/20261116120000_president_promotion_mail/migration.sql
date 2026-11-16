@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "LeagueMailCategory" ADD VALUE IF NOT EXISTS 'PRESIDENT_PROMOTION';

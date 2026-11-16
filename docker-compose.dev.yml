@@ -1,0 +1,31 @@
+# -----------------------------------------------------------------------------
+# DREAM5 — override para DESARROLLO LOCAL
+# -----------------------------------------------------------------------------
+# Publica PostgreSQL y Redis SOLO en la interfaz de loopback (127.0.0.1) para
+# que la API, el worker y Prisma CLI ejecutados en el host puedan conectarse.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres redis
+#   (equivalente: pnpm docker:infra)
+#
+# Nunca uses este archivo en servidores accesibles desde Internet.
+# -----------------------------------------------------------------------------
+
+services:
+  postgres:
+    ports:
+      - '127.0.0.1:${POSTGRES_PORT:-5432}:5432'
+    networks:
+      - backend
+      - devhost
+
+  redis:
+    ports:
+      - '127.0.0.1:${REDIS_PORT:-6379}:6379'
+    networks:
+      - backend
+      - devhost
+
+networks:
+  # La red `backend` es interna y no admite publicar puertos; esta red
+  # adicional permite el acceso desde el host únicamente en desarrollo.
+  devhost: {}

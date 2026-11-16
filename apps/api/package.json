@@ -1,0 +1,53 @@
+{
+  "name": "@dream5/api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "API HTTP y tiempo real de DREAM5 (NestJS + Fastify + Socket.IO)",
+  "type": "module",
+  "scripts": {
+    "build": "pnpm run clean && tsc -p tsconfig.build.json && node -e \"const fs=require('node:fs');fs.mkdirSync('dist/assets',{recursive:true});fs.copyFileSync('src/assets/dream5-logo.png','dist/assets/dream5-logo.png')\"",
+    "dev": "pnpm run build && concurrently -k -n tsc,api -c cyan,green \"tsc -p tsconfig.build.json --watch --preserveWatchOutput\" \"node --watch dist/main.js\"",
+    "start": "node dist/main.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\""
+  },
+  "dependencies": {
+    "@dream5/database": "workspace:*",
+    "@dream5/shared": "workspace:*",
+    "@dream5/simulation-engine": "workspace:*",
+    "@fastify/helmet": "13.2.0",
+    "@fastify/multipart": "10.1.8",
+    "@fastify/static": "10.1.10",
+    "@nestjs/bullmq": "catalog:",
+    "@nestjs/common": "catalog:",
+    "@nestjs/core": "catalog:",
+    "@nestjs/platform-fastify": "12.4.2",
+    "@nestjs/platform-socket.io": "12.4.2",
+    "@nestjs/swagger": "12.1.1",
+    "@nestjs/websockets": "12.4.2",
+    "bullmq": "catalog:",
+    "ioredis": "catalog:",
+    "nestjs-pino": "catalog:",
+    "nodemailer": "10.5.0",
+    "pino": "catalog:",
+    "pino-http": "catalog:",
+    "reflect-metadata": "catalog:",
+    "rxjs": "catalog:",
+    "socket.io": "4.8.4",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@dream5/config": "workspace:*",
+    "@nestjs/testing": "catalog:",
+    "@swc/core": "catalog:",
+    "@types/node": "catalog:",
+    "@types/nodemailer": "8.0.2",
+    "concurrently": "catalog:",
+    "pino-pretty": "catalog:",
+    "typescript": "catalog:",
+    "unplugin-swc": "catalog:",
+    "vitest": "catalog:"
+  }
+}

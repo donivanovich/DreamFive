@@ -1,0 +1,44 @@
+{
+  "name": "@dream5/worker",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Worker de trabajos en segundo plano de DREAM5 (NestJS standalone + BullMQ)",
+  "type": "module",
+  "scripts": {
+    "build": "pnpm run clean && tsc -p tsconfig.build.json",
+    "dev": "pnpm run build && concurrently -k -n tsc,worker -c cyan,yellow \"tsc -p tsconfig.build.json --watch --preserveWatchOutput\" \"node --watch dist/main.js\"",
+    "start": "node dist/main.js",
+    "healthcheck": "node dist/healthcheck.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\""
+  },
+  "dependencies": {
+    "@dream5/database": "workspace:*",
+    "@dream5/shared": "workspace:*",
+    "@dream5/simulation-engine": "workspace:*",
+    "@nestjs/bullmq": "catalog:",
+    "@nestjs/common": "catalog:",
+    "@nestjs/core": "catalog:",
+    "bullmq": "catalog:",
+    "ioredis": "catalog:",
+    "nestjs-pino": "catalog:",
+    "pino": "catalog:",
+    "pino-http": "catalog:",
+    "reflect-metadata": "catalog:",
+    "rxjs": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@dream5/config": "workspace:*",
+    "@nestjs/testing": "catalog:",
+    "@swc/core": "catalog:",
+    "@types/node": "catalog:",
+    "concurrently": "catalog:",
+    "pino-pretty": "catalog:",
+    "typescript": "catalog:",
+    "unplugin-swc": "catalog:",
+    "vitest": "catalog:"
+  }
+}

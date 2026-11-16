@@ -1,0 +1,44 @@
+{
+  "name": "@dream5/database",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Esquema Prisma, migraciones y cliente de base de datos PostgreSQL de DREAM5",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "prisma"
+  ],
+  "scripts": {
+    "build": "pnpm run db:generate && tsc -p tsconfig.build.json",
+    "typecheck": "pnpm run db:generate && tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "clean": "node -e \"const fs=require('node:fs');fs.rmSync('dist',{recursive:true,force:true});fs.rmSync('src/generated',{recursive:true,force:true})\"",
+    "db:generate": "prisma generate",
+    "db:validate": "prisma validate",
+    "db:format": "prisma format",
+    "db:migrate:dev": "prisma migrate dev",
+    "db:migrate:deploy": "prisma migrate deploy",
+    "db:migrate:status": "prisma migrate status",
+    "db:studio": "prisma studio",
+    "db:seed": "node dist/seed.js"
+  },
+  "dependencies": {
+    "@dream5/shared": "workspace:*",
+    "@dream5/simulation-engine": "workspace:*",
+    "@prisma/adapter-pg": "7.10.1",
+    "@prisma/client": "7.10.1"
+  },
+  "devDependencies": {
+    "@dream5/config": "workspace:*",
+    "@types/node": "catalog:",
+    "prisma": "7.10.1",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
