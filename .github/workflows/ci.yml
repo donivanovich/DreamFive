@@ -22,15 +22,48 @@ jobs:
     name: Calidad, compilación y pruebas unitarias
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18.6-alpine3.24
+        env:
+          POSTGRES_USER: dream5
+          POSTGRES_PASSWORD: ci-postgres-password
+          POSTGRES_DB: dream5_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U dream5 -d dream5_ci"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+      redis:
+        image: redis:8.8.4-alpine3.23
+        command: redis-server --requirepass ci-redis-password-1234 --maxmemory-policy noeviction
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli -a ci-redis-password-1234 ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      NODE_ENV: test
+      LOG_LEVEL: warn
+      DATABASE_URL: postgresql://dream5:ci-postgres-password@127.0.0.1:5432/dream5_ci?schema=public
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: '6379'
+      REDIS_PASSWORD: ci-redis-password-1234
+      API_CORS_ORIGINS: http://localhost:3000
+      WEB_PUBLIC_URL: http://localhost:3000
     steps:
       - name: Descargar código
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Instalar pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v5
 
       - name: Configurar Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
@@ -40,6 +73,9 @@ jobs:
 
       - name: Validar esquema Prisma
         run: pnpm run db:validate
+
+      - name: Generar cliente Prisma y compilar paquetes internos
+        run: pnpm run build:packages
 
       - name: Comprobar formato (Prettier)
         run: pnpm run format:check
@@ -53,7 +89,10 @@ jobs:
       - name: Compilar aplicaciones y paquetes
         run: pnpm run build
 
-      - name: Ejecutar pruebas unitarias (Vitest)
+      - name: Aplicar migraciones Prisma de prueba
+        run: pnpm run db:migrate:deploy
+
+      - name: Ejecutar pruebas unitarias y de integración (Vitest)
         run: pnpm run test
 
   e2e:
@@ -61,15 +100,52 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: quality
+    services:
+      postgres:
+        image: postgres:18.6-alpine3.24
+        env:
+          POSTGRES_USER: dream5
+          POSTGRES_PASSWORD: ci-postgres-password
+          POSTGRES_DB: dream5_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U dream5 -d dream5_e2e"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+      redis:
+        image: redis:8.8.4-alpine3.23
+        command: redis-server --requirepass ci-redis-password-1234 --maxmemory-policy noeviction
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli -a ci-redis-password-1234 ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      NODE_ENV: development
+      LOG_LEVEL: warn
+      DATABASE_URL: postgresql://dream5:ci-postgres-password@127.0.0.1:5432/dream5_e2e?schema=public
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: '6379'
+      REDIS_PASSWORD: ci-redis-password-1234
+      API_PORT: '3001'
+      API_CORS_ORIGINS: http://localhost:3000
+      WEB_PUBLIC_URL: http://localhost:3000
+      DEV_TOOLS_ENABLED: 'true'
+      VITE_API_URL: http://localhost:3001
+      VITE_DEV_TOOLS_ENABLED: 'false'
     steps:
       - name: Descargar código
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Instalar pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v5
 
       - name: Configurar Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
@@ -77,18 +153,42 @@ jobs:
       - name: Instalar dependencias (lockfile congelado)
         run: pnpm install --frozen-lockfile
 
+      - name: Compilar paquetes y aplicaciones
+        run: pnpm run build
+
+      - name: Preparar base de datos E2E y datos semilla
+        run: |
+          pnpm run db:migrate:deploy
+          pnpm --filter @dream5/database run db:seed
+
+      - name: Arrancar API en segundo plano para E2E
+        run: |
+          nohup pnpm --filter @dream5/api run start > api-e2e.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:3001/health/ready; then
+              echo ""
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "La API no respondió a /health/ready"
+          cat api-e2e.log || true
+          exit 1
+
       - name: Instalar navegador Chromium para Playwright
         run: pnpm --filter @dream5/web exec playwright install --with-deps chromium
 
       - name: Ejecutar pruebas E2E
         run: pnpm run test:e2e
 
-      - name: Subir informe de Playwright en caso de fallo
+      - name: Subir informe de Playwright y logs en caso de fallo
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: playwright-report
-          path: apps/web/playwright-report/
+          path: |
+            apps/web/playwright-report/
+            api-e2e.log
           retention-days: 7
 
   docker-and-audit:
@@ -97,13 +197,13 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Descargar código
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Instalar pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v5
 
       - name: Configurar Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm

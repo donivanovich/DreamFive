@@ -20,7 +20,7 @@
     "dev:api": "pnpm --filter @dream5/api run dev",
     "dev:worker": "pnpm --filter @dream5/worker run dev",
     "typecheck": "pnpm run build:packages && pnpm -r --sort run typecheck",
-    "lint": "eslint . --max-warnings=0",
+    "lint": "pnpm run build:packages && eslint . --max-warnings=0",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
