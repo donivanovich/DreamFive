@@ -17,17 +17,22 @@ cp .env.example .env
 
 Valores clave en `.env`:
 
-- `WEB_PORT=3100` y `API_PORT=3101`
+- `WEB_PORT=3100` y `WEB_PORT_RANGE=3100-3199` (rango de respaldo si `3100` ya está en uso)
+- `API_PORT=3101` y `API_PORT_RANGE=3101-3199` (rango de respaldo si `3101` ya está en uso)
+- `POSTGRES_PORT_RANGE=5432-5499` y `REDIS_PORT_RANGE=6379-6449` (para `docker-compose.dev.yml`)
 - `VITE_API_URL=http://localhost:3101`
-- `WEB_PUBLIC_URL=http://localhost:3100`
+- `WEB_PUBLIC_URL=http://localhost:3100` (también usada para los metadatos Open Graph / Twitter Cards al compartir la URL)
 - `API_CORS_ORIGINS=http://localhost:3100`
 - `SMTP_HOST=smtp.gmail.com` y `SMTP_PORT=465` (`SMTP_SECURE=true`) junto con `SMTP_USER` y `SMTP_PASS` para correo real.
 
 ## 3. Arranque total con un solo comando
 
 ```bash
-docker compose up -d --build
+pnpm docker:up
+# o directamente: docker compose up -d --build
 ```
+
+Si alguno de los puertos configurados está ocupado, `pnpm docker:up` busca automáticamente el primer puerto libre dentro de su rango (`*_PORT_RANGE`) y sincroniza `VITE_API_URL`, `WEB_PUBLIC_URL` y `API_CORS_ORIGINS`. Puedes comprobar qué puertos se asignarían sin levantar contenedores con `pnpm docker:ports`.
 
 Secuencia automática orquestada por Compose:
 

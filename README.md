@@ -49,7 +49,8 @@
 
 ```bash
 cp .env.example .env
-docker compose up -d --build
+pnpm docker:up
+# o directamente: docker compose up -d --build
 ```
 
 Este comando construye y levanta automáticamente toda la arquitectura sin necesidad de abrir terminales manuales para API, Worker ni Web:
@@ -61,10 +62,10 @@ Este comando construye y levanta automáticamente toda la arquitectura sin neces
 
 Accesos locales (configurables en `.env`):
 
-- **Frontend web:** `http://localhost:3100`
-- **API Fastify:** `http://localhost:3101`
+- **Frontend web:** `http://localhost:3100` (rango de respaldo `WEB_PORT_RANGE=3100-3199`)
+- **API Fastify:** `http://localhost:3101` (rango de respaldo `API_PORT_RANGE=3101-3199`)
 
-> Por defecto `.env` utiliza `WEB_PORT=3100` y `API_PORT=3101` para evitar colisiones con contenedores en `3000`/`3001`.
+> Si los puertos definidos (`WEB_PORT`, `API_PORT`, `POSTGRES_PORT` o `REDIS_PORT`) ya están ocupados en el host, Docker Compose y `pnpm docker:up` seleccionan automáticamente un puerto libre dentro de su rango (`*_PORT_RANGE`) y sincronizan `VITE_API_URL`, `WEB_PUBLIC_URL` y `API_CORS_ORIGINS`. Puedes previsualizar los puertos asignados con `pnpm docker:ports`.
 
 ### 3. Credenciales de demostración (cargadas por `seed`)
 

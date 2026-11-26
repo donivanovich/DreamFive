@@ -97,6 +97,7 @@ services:
       target: api
     image: dream5/api:local
     environment:
+      TZ: ${TZ:-Europe/Madrid}
       NODE_ENV: ${NODE_ENV:-production}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       API_HOST: 0.0.0.0
@@ -127,7 +128,7 @@ services:
     volumes:
       - api-uploads:/app/uploads
     ports:
-      - '127.0.0.1:${API_PORT:-3001}:3001'
+      - '127.0.0.1:${API_PORT_RANGE:-3101-3199}:3001'
     networks:
       - backend
       - edge
@@ -144,6 +145,7 @@ services:
       target: worker
     image: dream5/worker:local
     environment:
+      TZ: ${TZ:-Europe/Madrid}
       NODE_ENV: ${NODE_ENV:-production}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
@@ -155,7 +157,7 @@ services:
       QUEUE_PREFIX: ${QUEUE_PREFIX:-dream5}
       WORKER_HEARTBEAT_FILE: /tmp/worker.heartbeat
       WORKER_HEARTBEAT_INTERVAL_MS: ${WORKER_HEARTBEAT_INTERVAL_MS:-10000}
-      WORKER_SCHEDULER_INTERVAL_MS: ${WORKER_SCHEDULER_INTERVAL_MS:-30000}
+      WORKER_SCHEDULER_INTERVAL_MS: ${WORKER_SCHEDULER_INTERVAL_MS:-5000}
     networks:
       - backend
     # Tiempo para que los trabajos en curso terminen antes de SIGKILL.
@@ -172,15 +174,18 @@ services:
       <<: *app-build
       target: web
       args:
-        VITE_API_URL: ${VITE_API_URL:-http://localhost:3001}
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:3101}
+        VITE_PUBLIC_URL: ${WEB_PUBLIC_URL:-http://localhost:3100}
         VITE_DEV_TOOLS_ENABLED: ${VITE_DEV_TOOLS_ENABLED:-false}
     image: dream5/web:local
     environment:
+      TZ: ${TZ:-Europe/Madrid}
       NODE_ENV: production
       PORT: 3000
       HOST: 0.0.0.0
+      WEB_PUBLIC_URL: ${WEB_PUBLIC_URL:-http://localhost:3100}
     ports:
-      - '127.0.0.1:${WEB_PORT:-3000}:3000'
+      - '127.0.0.1:${WEB_PORT_RANGE:-3100-3199}:3000'
     networks:
       - edge
     depends_on:
@@ -194,6 +199,7 @@ services:
     image: dream5/migrate:local
     restart: 'no'
     environment:
+      TZ: ${TZ:-Europe/Madrid}
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
     networks:
       - backend
@@ -210,6 +216,7 @@ services:
     image: dream5/seed:local
     restart: 'no'
     environment:
+      TZ: ${TZ:-Europe/Madrid}
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
     networks:
       - backend
