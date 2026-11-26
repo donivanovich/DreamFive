@@ -171,8 +171,12 @@ export interface PlayerMatchStatDpBreakdownDto {
   readonly ast: number;
   readonly stl: number;
   readonly blk: number;
+  readonly td: number;
   readonly tov: number;
   readonly pf: number;
+  readonly tf: number;
+  readonly ft1: number;
+  readonly ft2: number;
   readonly minutes: number;
 }
 
@@ -193,11 +197,17 @@ export interface PlayerDetailMatchStatDto {
   readonly ast: number;
   readonly stl: number;
   readonly blk: number;
+  readonly td: number;
   readonly tov: number;
   readonly pf: number;
+  readonly tf: number;
+  readonly ft1: number;
+  readonly ft2: number;
   readonly fantasyPoints: number;
   readonly wasStarter: boolean;
   readonly ejected: boolean;
+  readonly disqualified: boolean;
+  readonly disqualificationReason: string | null;
   readonly injured: boolean;
   readonly dpBreakdown: PlayerMatchStatDpBreakdownDto;
 }
@@ -306,11 +316,17 @@ export interface PlayerMatchStatDto {
   readonly ast: number;
   readonly stl: number;
   readonly blk: number;
+  readonly td: number;
   readonly tov: number;
   readonly pf: number;
+  readonly tf: number;
+  readonly ft1: number;
+  readonly ft2: number;
   readonly fantasyPoints: number;
   readonly wasStarter: boolean;
   readonly ejected: boolean;
+  readonly disqualified: boolean;
+  readonly disqualificationReason: string | null;
   readonly injured: boolean;
 }
 
@@ -420,11 +436,17 @@ export interface SimulationJobDto {
 export interface DevLeagueStatusDto {
   readonly leagueId: string;
   readonly leagueName: string;
+  readonly serverTimeIso: string;
+  readonly serverTimeZone: string;
   readonly gameClockAt: string;
+  readonly isAccelerated: boolean;
+  readonly workerOnline: boolean;
   readonly season: SeasonSummaryDto;
   readonly scheduledMatchesRemaining: number;
   readonly completedMatchesCount: number;
   readonly nextScheduledRound: number | null;
+  readonly nextScheduledMatchAt: string | null;
+  readonly nextScheduledMatchLabel: string | null;
   readonly pendingJobsCount: number;
   readonly recentJobs: readonly SimulationJobDto[];
 }

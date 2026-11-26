@@ -26,6 +26,7 @@ export interface RecalculateRankingsJobData {
 
 export interface SeasonRolloverJobData {
   readonly leagueId: string;
+  readonly expectedSeasonId?: string;
   readonly resetConfig?: SeasonResetConfig;
   readonly simJobId?: string;
 }

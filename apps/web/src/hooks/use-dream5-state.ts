@@ -14,6 +14,7 @@ export interface Dream5StateContextValue {
   readonly setActiveLeagueId: (leagueId: string) => void;
   readonly pendingInvitationsCount: number;
   readonly unreadMailCount: number;
+  readonly realtimeConnected: boolean;
   readonly preferences: UserPreferences;
   readonly appearance: AppearanceSettings;
   readonly updatePreference: <K extends keyof UserPreferences>(

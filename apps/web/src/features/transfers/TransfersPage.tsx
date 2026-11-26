@@ -520,7 +520,7 @@ export function TransfersPage() {
             </div>
           )}
 
-          <div className="grid gap-3 md:grid-cols-3">
+          <div className="grid grid-cols-2 gap-2.5 sm:gap-3 md:grid-cols-3">
             <div className="space-y-1">
               <label htmlFor="cash-offered" className="text-xs font-semibold text-muted-foreground">
                 {t.transfersPage.cashOfferedLabel}
@@ -566,7 +566,7 @@ export function TransfersPage() {
                   : t.transfersPage.cashIncrementHint}
               </p>
             </div>
-            <div className="space-y-1">
+            <div className="col-span-2 space-y-1 md:col-span-1">
               <label
                 htmlFor="trade-message"
                 className="text-xs font-semibold text-muted-foreground"
@@ -708,37 +708,60 @@ export function TransfersPage() {
             auditHistory.map((item) => (
               <div
                 key={item.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/80 bg-surface-deep/75 px-3 py-2 text-xs"
+                className="space-y-1.5 rounded-md border border-border/80 bg-surface-deep/75 px-2.5 py-2 text-xs sm:px-3"
               >
-                <div className="space-y-1">
-                  <p className="font-semibold text-foreground">{item.summary}</p>
-                  <div className="flex flex-wrap items-center gap-2 text-muted-foreground">
-                    <span className="inline-flex items-center gap-1.5">
-                      <TeamLogo code={item.fromTeamCode} size="sm" />
-                      {item.fromTeamCode} ↔ {item.toTeamCode}
-                      <TeamLogo code={item.toTeamCode} size="sm" />
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                    <TeamLogo code={item.fromTeamCode} name={item.fromTeamName} size="sm" />
+                    <span className="truncate font-semibold text-foreground sm:hidden">
+                      {item.fromTeamCode}
                     </span>
-                    {item.movedPlayers.map((p) => (
-                      <Badge
-                        key={p.id}
-                        variant="outline"
-                        {...getTriggerProps({
-                          id: p.id,
-                          name: p.name,
-                          position: p.position,
-                          role: p.role,
-                          priceMillions: p.priceMillions,
-                        })}
-                        className="cursor-pointer hover:border-primary/50"
-                      >
-                        {p.name} ({p.position})
+                    <span className="hidden truncate font-semibold text-foreground sm:inline">
+                      {item.fromTeamName}
+                    </span>
+                    <ArrowLeftRight className="h-3.5 w-3.5 shrink-0 text-primary" />
+                    <span className="truncate font-semibold text-foreground sm:hidden">
+                      {item.toTeamCode}
+                    </span>
+                    <span className="hidden truncate font-semibold text-foreground sm:inline">
+                      {item.toTeamName}
+                    </span>
+                    <TeamLogo code={item.toTeamCode} name={item.toTeamName} size="sm" />
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    {Math.abs(item.cashTransferredNet) >= 0.05 ? (
+                      <Badge variant="primary" className="text-[10px]">
+                        {formatMillions(Math.abs(item.cashTransferredNet))}
                       </Badge>
-                    ))}
+                    ) : null}
+                    <span className="text-[10px] text-muted-foreground tabular-nums sm:text-[11px]">
+                      {new Date(item.executedAt).toLocaleString(locale, {
+                        day: '2-digit',
+                        month: 'short',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </span>
                   </div>
                 </div>
-                <span className="text-muted-foreground">
-                  {new Date(item.executedAt).toLocaleString(locale)}
-                </span>
+                <div className="flex flex-wrap items-center gap-1">
+                  {item.movedPlayers.map((p) => (
+                    <Badge
+                      key={p.id}
+                      variant="outline"
+                      {...getTriggerProps({
+                        id: p.id,
+                        name: p.name,
+                        position: p.position,
+                        role: p.role,
+                        priceMillions: p.priceMillions,
+                      })}
+                      className="cursor-pointer hover:border-primary/50"
+                    >
+                      {p.name} ({p.position})
+                    </Badge>
+                  ))}
+                </div>
               </div>
             ))
           )}

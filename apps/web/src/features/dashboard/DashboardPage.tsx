@@ -19,7 +19,7 @@ import { ModalDialog } from '@/components/ui/Dialog';
 import { usePlayerContextMenu } from '@/components/players/player-context';
 import { useDream5State } from '@/hooks/use-dream5-state';
 import { useI18n } from '@/hooks/use-i18n';
-import { formatExactCreditsFromMillions, formatMillions } from '@/lib/formatters';
+import { formatExactCreditsFromMillions, formatMillions, formatStatNumber } from '@/lib/formatters';
 import { translateLeagueRole } from '@/lib/i18n';
 import {
   lineupApi,
@@ -136,57 +136,64 @@ export function DashboardPage() {
   const renderLeagueTradeItem = (item: (typeof leagueTrades)[number]) => (
     <div
       key={item.id}
-      className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/80 bg-surface-deep/75 px-3 py-2.5 text-xs"
+      className="space-y-1.5 rounded-lg border border-border/80 bg-surface-deep/75 px-2.5 py-2 text-xs sm:px-3 sm:py-2.5"
     >
-      <div className="min-w-0 flex-1 space-y-1.5">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 font-semibold text-foreground">
-            <TeamLogo code={item.fromTeamCode} size="sm" />
-            <span>{item.fromTeamName}</span>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex min-w-0 flex-1 items-center gap-1.5">
+          <TeamLogo code={item.fromTeamCode} name={item.fromTeamName} size="sm" />
+          <span className="truncate font-semibold text-foreground sm:hidden">
+            {item.fromTeamCode}
+          </span>
+          <span className="hidden truncate font-semibold text-foreground sm:inline">
+            {item.fromTeamName}
           </span>
           <ArrowLeftRight className="h-3.5 w-3.5 shrink-0 text-primary" />
-          <span className="inline-flex items-center gap-1.5 font-semibold text-foreground">
-            <TeamLogo code={item.toTeamCode} size="sm" />
-            <span>{item.toTeamName}</span>
+          <span className="truncate font-semibold text-foreground sm:hidden">
+            {item.toTeamCode}
           </span>
+          <span className="hidden truncate font-semibold text-foreground sm:inline">
+            {item.toTeamName}
+          </span>
+          <TeamLogo code={item.toTeamCode} name={item.toTeamName} size="sm" />
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
           {Math.abs(item.cashTransferredNet) >= 0.05 ? (
             <Badge variant="primary" className="text-[10px]">
               {formatMillions(Math.abs(item.cashTransferredNet))}
             </Badge>
           ) : null}
-        </div>
-        <p className="text-muted-foreground">{item.summary}</p>
-        <div className="flex flex-wrap items-center gap-1.5">
-          {item.movedPlayers.map((p) => (
-            <Badge
-              key={p.id}
-              variant="outline"
-              {...getTriggerProps({
-                id: p.id,
-                name: p.name,
-                position: p.position,
-                role: p.role,
-                priceMillions: p.priceMillions,
-              })}
-              onClick={(e) => {
-                e.stopPropagation();
-                setSelectedPlayerId(p.id);
-              }}
-              className="cursor-pointer hover:border-primary/50"
-            >
-              {p.name} ({p.position})
-            </Badge>
-          ))}
+          <span className="text-[10px] text-muted-foreground tabular-nums sm:text-[11px]">
+            {new Date(item.executedAt).toLocaleString(locale, {
+              day: '2-digit',
+              month: 'short',
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+          </span>
         </div>
       </div>
-      <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">
-        {new Date(item.executedAt).toLocaleString(locale, {
-          day: '2-digit',
-          month: 'short',
-          hour: '2-digit',
-          minute: '2-digit',
-        })}
-      </span>
+      <div className="flex flex-wrap items-center gap-1">
+        {item.movedPlayers.map((p) => (
+          <Badge
+            key={p.id}
+            variant="outline"
+            {...getTriggerProps({
+              id: p.id,
+              name: p.name,
+              position: p.position,
+              role: p.role,
+              priceMillions: p.priceMillions,
+            })}
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedPlayerId(p.id);
+            }}
+            className="cursor-pointer hover:border-primary/50"
+          >
+            {p.name} ({p.position})
+          </Badge>
+        ))}
+      </div>
     </div>
   );
 
@@ -200,7 +207,7 @@ export function DashboardPage() {
   const nextRound = lineupQuery.data?.roundNumber ?? activeLeague.currentRoundNumber + 1;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <PageHeader
         title={f(t.dashboard.titleWithLeague, { leagueName: activeLeague.name })}
         description={f(t.dashboard.roleMeta, {
@@ -254,24 +261,27 @@ export function DashboardPage() {
         </div>
       ) : (
         <>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-4">
             <Card>
-              <CardContent className="pt-5">
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span className="font-semibold uppercase">{t.dashboard.franchiseCard}</span>
-                  <Shield className="h-4 w-4 text-primary" />
+              <CardContent className="pt-3.5 sm:pt-5">
+                <div className="flex items-center justify-between gap-1.5 text-[10px] text-muted-foreground sm:text-xs">
+                  <span className="truncate font-semibold uppercase">
+                    {t.dashboard.franchiseCard}
+                  </span>
+                  <Shield className="h-3.5 w-3.5 shrink-0 text-primary sm:h-4 sm:w-4" />
                 </div>
-                <div className="mt-2 flex items-center gap-2.5">
+                <div className="mt-1.5 flex items-center gap-2 sm:mt-2 sm:gap-2.5">
                   <TeamLogo
                     code={activeLeague.userTeamCode}
                     name={activeLeague.userTeamName}
-                    size="md"
+                    size="sm"
                   />
                   <div className="min-w-0">
-                    <p className="truncate font-display text-2xl font-bold text-foreground uppercase">
-                      {activeLeague.userTeamName}
+                    <p className="truncate font-display text-lg font-bold text-foreground uppercase sm:text-2xl">
+                      <span className="sm:hidden">{activeLeague.userTeamCode}</span>
+                      <span className="hidden sm:inline">{activeLeague.userTeamName}</span>
                     </p>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="truncate text-[11px] text-muted-foreground sm:text-xs">
                       {teamDetailQuery.data?.roster.length ?? 18} {t.dashboard.playersCountLabel} ·{' '}
                       {activeLeague.userTeamCode}
                     </p>
@@ -281,30 +291,32 @@ export function DashboardPage() {
             </Card>
 
             <Card>
-              <CardContent className="pt-5">
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span className="font-semibold uppercase">{t.dashboard.standingsCard}</span>
-                  <Trophy className="h-4 w-4 text-primary" />
+              <CardContent className="pt-3.5 sm:pt-5">
+                <div className="flex items-center justify-between gap-1.5 text-[10px] text-muted-foreground sm:text-xs">
+                  <span className="truncate font-semibold uppercase">
+                    {t.dashboard.standingsCard}
+                  </span>
+                  <Trophy className="h-3.5 w-3.5 shrink-0 text-primary sm:h-4 sm:w-4" />
                 </div>
-                <p className="mt-2 font-display text-2xl font-bold text-primary tabular-nums">
+                <p className="mt-1.5 font-display text-lg font-bold text-primary tabular-nums sm:mt-2 sm:text-2xl">
                   {f(t.dashboard.rankOf30, { rank: activeLeague.userRank })}
                 </p>
-                <p className="mt-1 text-xs text-muted-foreground tabular-nums">
-                  {f(t.dashboard.accumulatedDp, { dp: activeLeague.userTotalFp.toFixed(1) })}
+                <p className="mt-0.5 truncate text-[11px] text-muted-foreground tabular-nums sm:mt-1 sm:text-xs">
+                  {f(t.dashboard.accumulatedDp, { dp: formatStatNumber(activeLeague.userTotalFp) })}
                 </p>
               </CardContent>
             </Card>
 
             <Card>
-              <CardContent className="pt-5">
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span className="font-semibold uppercase">{t.dashboard.budgetCard}</span>
-                  <CalendarClock className="h-4 w-4 text-primary" />
+              <CardContent className="pt-3.5 sm:pt-5">
+                <div className="flex items-center justify-between gap-1.5 text-[10px] text-muted-foreground sm:text-xs">
+                  <span className="truncate font-semibold uppercase">{t.dashboard.budgetCard}</span>
+                  <CalendarClock className="h-3.5 w-3.5 shrink-0 text-primary sm:h-4 sm:w-4" />
                 </div>
-                <p className="mt-2 font-display text-2xl font-bold text-foreground tabular-nums">
+                <p className="mt-1.5 font-display text-lg font-bold text-foreground tabular-nums sm:mt-2 sm:text-2xl">
                   {formatMillions(teamDetailQuery.data?.team.budgetMillions ?? 0)}
                 </p>
-                <p className="mt-1 text-xs text-muted-foreground tabular-nums">
+                <p className="mt-0.5 truncate text-[11px] text-muted-foreground tabular-nums sm:mt-1 sm:text-xs">
                   {formatExactCreditsFromMillions(
                     teamDetailQuery.data?.team.budgetMillions ?? 0,
                     locale,
@@ -318,15 +330,17 @@ export function DashboardPage() {
             </Card>
 
             <Card>
-              <CardContent className="pt-5">
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span className="font-semibold uppercase">{t.dashboard.pendingTradesCard}</span>
-                  <ArrowLeftRight className="h-4 w-4 text-primary" />
+              <CardContent className="pt-3.5 sm:pt-5">
+                <div className="flex items-center justify-between gap-1.5 text-[10px] text-muted-foreground sm:text-xs">
+                  <span className="truncate font-semibold uppercase">
+                    {t.dashboard.pendingTradesCard}
+                  </span>
+                  <ArrowLeftRight className="h-3.5 w-3.5 shrink-0 text-primary sm:h-4 sm:w-4" />
                 </div>
-                <p className="mt-2 font-display text-2xl font-bold text-foreground tabular-nums">
+                <p className="mt-1.5 font-display text-lg font-bold text-foreground tabular-nums sm:mt-2 sm:text-2xl">
                   {pendingIncomingCount}
                 </p>
-                <p className="mt-1 text-xs text-muted-foreground">
+                <p className="mt-0.5 truncate text-[11px] text-muted-foreground sm:mt-1 sm:text-xs">
                   <Link to="/transfers" className="text-primary hover:underline">
                     {t.dashboard.openTradesLink}
                   </Link>
@@ -335,7 +349,7 @@ export function DashboardPage() {
             </Card>
           </div>
 
-          <div className="grid gap-6 xl:grid-cols-[1.35fr_1fr]">
+          <div className="grid gap-4 sm:gap-6 xl:grid-cols-[1.35fr_1fr]">
             <Card>
               <CardHeader className="pb-3">
                 <div className="min-w-0">
@@ -433,7 +447,7 @@ export function DashboardPage() {
                   </Button>
                 </Link>
               </div>
-              <div className="grid gap-3 md:grid-cols-2">
+              <div className="grid gap-2.5 sm:gap-3 md:grid-cols-2">
                 {userMatches.map((match) => (
                   <MatchCard key={match.id} match={match} />
                 ))}

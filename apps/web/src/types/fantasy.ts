@@ -131,6 +131,7 @@ export interface TradeOffer {
   readonly bucket: 'incoming' | 'outgoing' | 'history';
   readonly counterpartyHandle: string;
   readonly counterpartyTeam: string;
+  readonly counterpartyCode: string;
   readonly dateLabel: string;
   readonly offeredPlayers: readonly TradePlayerRef[];
   readonly requestedPlayers: readonly TradePlayerRef[];

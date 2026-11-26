@@ -3,8 +3,10 @@ import { describe, expect, it } from 'vitest';
 import {
   advanceUnavailableStatusOneRound,
   buildDailyRoundCounts,
+  calculatePlayerDreamPointsBreakdown,
   calculatePlayerFantasyPoints,
   createSeededRng,
+  distributeMatchSlotsAcrossMonth,
   distributeRoundsAcrossMonth,
   evaluatePlayerProgression,
   generateDoubleRoundRobinFixtures,
@@ -17,13 +19,23 @@ import type { EnginePlayerInput, EnginePosition, EngineScoringWeights } from './
 
 const DEFAULT_WEIGHTS: EngineScoringWeights = {
   pts: 1,
-  reb: 1.2,
-  ast: 1.5,
-  stl: 2.5,
-  blk: 2.5,
-  tov: -1.5,
-  pf: -0.5,
-  min: 0,
+  reb: 1,
+  ast: 1,
+  stl: 1,
+  blk: 1,
+  td: 4,
+  tov: -1,
+  pf: -1,
+  tf: -2,
+  ft1: -3,
+  ft2: -5,
+  min: 1,
+  ptsDivisor: 5,
+  rebDivisor: 2,
+  astDivisor: 2,
+  minDivisor: 10,
+  minMaxPoints: 4,
+  minMaxMinutes: 48,
 };
 
 const DEFAULT_INJURY_CONFIG = {
@@ -95,7 +107,59 @@ describe('calendario mensual de 58 jornadas ida y vuelta (30 equipos)', () => {
         expect(hour).toBeGreaterThanOrEqual(8);
         expect(hour).toBeLessThanOrEqual(20);
       }
+
+      const slots = distributeMatchSlotsAcrossMonth({
+        year: c.year,
+        month: c.month,
+        startHour: 8,
+        endHour: 20,
+        matchesPerRound: 15,
+      });
+      expect(slots).toHaveLength(58 * 15);
+      for (let day = 1; day <= days; day += 1) {
+        const daySlots = slots.filter((s) => s.dayOfMonth === day);
+        const firstMs = Date.parse(daySlots[0]?.scheduledAtIso ?? '');
+        const lastMs = Date.parse(daySlots[daySlots.length - 1]?.scheduledAtIso ?? '');
+        expect(new Date(firstMs).getUTCHours()).toBe(8);
+        expect(new Date(firstMs).getUTCMinutes()).toBe(0);
+        expect(new Date(lastMs).getUTCHours()).toBe(20);
+        expect(new Date(lastMs).getUTCMinutes()).toBe(0);
+        for (let i = 1; i < daySlots.length; i += 1) {
+          const gapMinutes =
+            (Date.parse(daySlots[i]?.scheduledAtIso ?? '') -
+              Date.parse(daySlots[i - 1]?.scheduledAtIso ?? '')) /
+            60_000;
+          expect(gapMinutes).toBeGreaterThanOrEqual(15);
+        }
+      }
     }
+  });
+
+  it('reparte los partidos equitativamente entre 08:00 y 20:00 en zona horaria local (Europe/Madrid)', () => {
+    const teamIds = Array.from({ length: 30 }, (_, i) => `team-${String(i + 1)}`);
+    const fixtures = generateDoubleRoundRobinFixtures({
+      teamIds,
+      year: 2026,
+      month: 11,
+      startHour: 8,
+      endHour: 20,
+      timeZone: 'Europe/Madrid',
+    });
+    const round34 = fixtures.filter((f) => f.roundNumber === 34);
+    const round35 = fixtures.filter((f) => f.roundNumber === 35);
+    const fmt = (iso: string) =>
+      new Intl.DateTimeFormat('es-ES', {
+        timeZone: 'Europe/Madrid',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      }).format(new Date(iso));
+
+    expect(fmt(round34[0]?.scheduledAtIso ?? '')).toBe('08:00');
+    expect(fmt(round35[round35.length - 1]?.scheduledAtIso ?? '')).toBe('20:00');
+    expect(Date.parse(round34[14]?.scheduledAtIso ?? '')).toBeLessThan(
+      Date.parse(round35[0]?.scheduledAtIso ?? ''),
+    );
   });
 
   it('genera 870 partidos sin duplicados en primera vuelta y con local/visitante invertidos en segunda vuelta', () => {
@@ -201,12 +265,54 @@ describe('simulación de partidos, puntuación configurable, bajas y economía',
     expect(resultA.playerBoxes.find((b) => b.playerId === 'LAR-0')?.minutes).toBe(0);
     expect(resultA.playerBoxes.find((b) => b.playerId === 'LAR-1')?.minutes).toBe(0);
 
-    // Puntuación configurable: cambiar multiplicadores cambia los puntos sin tocar el motor
-    const customFp = calculatePlayerFantasyPoints(
-      { pts: 20, reb: 5, ast: 4, stl: 2, blk: 1, tov: 2, pf: 3, minutes: 32 },
-      { ...DEFAULT_WEIGHTS, pts: 2 },
+    // Máximo 48 min y cumplimiento estricto de límites de descalificación en partido
+    for (const box of resultA.playerBoxes) {
+      expect(box.minutes).toBeLessThanOrEqual(48);
+      expect(box.pf).toBeLessThanOrEqual(6);
+      expect(box.tf).toBeLessThanOrEqual(2);
+      expect(box.ft1).toBeLessThanOrEqual(2);
+      expect(box.ft2).toBeLessThanOrEqual(1);
+      const reachedDqLimit = box.pf >= 6 || box.tf >= 2 || box.ft1 >= 2 || box.ft2 >= 1;
+      expect(box.disqualified).toBe(reachedDqLimit);
+      expect(box.ejected).toBe(reachedDqLimit);
+      if (reachedDqLimit && !box.injured) {
+        // La descalificación se aplica únicamente al partido actual
+        expect(box.nextStatus).toBe('HEALTHY');
+        expect(box.nextGamesOut).toBe(0);
+      }
+    }
+
+    // Reglas NBA exactas: truncado decimal, tope MIN 4 pts/48m, TD +4 una sola vez y negativos
+    const standardLine = calculatePlayerDreamPointsBreakdown(
+      { pts: 24, reb: 9, ast: 7, stl: 2, blk: 1, tov: 3, pf: 4, minutes: 39 },
+      DEFAULT_WEIGHTS,
     );
-    expect(customFp).toBe(55);
+    // MIN floor(39/10)=3, PTS floor(24/5)=4, REB floor(9/2)=4, AST floor(7/2)=3, STL=2, BLK=1, TD=0, TOV=-3, PF=-4 => 10
+    expect(standardLine.minutes).toBe(3);
+    expect(standardLine.pts).toBe(4);
+    expect(standardLine.reb).toBe(4);
+    expect(standardLine.ast).toBe(3);
+    expect(standardLine.td).toBe(0);
+    expect(standardLine.total).toBe(10);
+
+    // Triple-doble y cuádruple-doble otorgan +4 una sola vez; >=48m topa en 4 pts MIN
+    const quadDoubleLine = calculatePlayerDreamPointsBreakdown(
+      { pts: 25, reb: 10, ast: 11, stl: 10, blk: 2, tov: 1, pf: 2, minutes: 53 },
+      DEFAULT_WEIGHTS,
+    );
+    // MIN=4, PTS=5, REB=5, AST=5, STL=10, BLK=2, TD=4, TOV=-1, PF=-2 => 32
+    expect(quadDoubleLine.minutes).toBe(4);
+    expect(quadDoubleLine.tdCount).toBe(1);
+    expect(quadDoubleLine.td).toBe(4);
+    expect(quadDoubleLine.total).toBe(32);
+
+    // Penalizaciones negativas (TF -2, FT1 -3, FT2 -5) pueden dejar el total en negativo
+    const negativeTotal = calculatePlayerFantasyPoints(
+      { pts: 4, reb: 1, ast: 1, stl: 0, blk: 0, tov: 2, pf: 1, tf: 2, ft1: 1, ft2: 1, minutes: 9 },
+      DEFAULT_WEIGHTS,
+    );
+    // 0 positives; -2 (TOV) -1 (PF) -4 (TF) -3 (FT1) -5 (FT2) = -15
+    expect(negativeTotal).toBe(-15);
   });
 
   it('recupera bajas por jornada, evalúa progresión y recalcula mercado sin salirse de límites', () => {
@@ -223,11 +329,11 @@ describe('simulación de partidos, puntuación configurable, bajas y economía',
         age: 21,
         role: 'ROOKIE',
         overallRating: 72,
-        avgFantasyPoints: 26,
+        avgFantasyPoints: 5,
         gamesPlayed: 5,
       },
       teamAlreadyHasSuperstar: true,
-      config: { evaluateEveryGames: 5, promoteMinFpDelta: 4.5, demoteMaxFpDelta: -4.5 },
+      config: { evaluateEveryGames: 5, promoteMinFpDelta: 2.5, demoteMaxFpDelta: -2.5 },
       rng: createSeededRng('prog-seed'),
     });
     expect(prog.newOverallRating).toBeGreaterThanOrEqual(48);
@@ -240,9 +346,9 @@ describe('simulación de partidos, puntuación configurable, bajas y economía',
           role: 'STAR',
           age: 23,
           status: 'HEALTHY',
-          currentPriceMillions: 12,
-          avgFantasyPoints: 34,
-          lastRoundFantasyPoints: 40,
+          currentPriceMillions: 36,
+          avgFantasyPoints: 11,
+          lastRoundFantasyPoints: 14,
         },
         {
           playerId: 'p2',
@@ -250,18 +356,21 @@ describe('simulación de partidos, puntuación configurable, bajas y economía',
           role: 'BENCH',
           age: 33,
           status: 'INJURED',
-          currentPriceMillions: 2,
-          avgFantasyPoints: 7,
-          lastRoundFantasyPoints: 0,
+          currentPriceMillions: 6,
+          avgFantasyPoints: 0.5,
+          lastRoundFantasyPoints: -2,
         },
       ],
-      config: { sensitivity: 0.06, minPriceMillions: 0.5, maxPriceMillions: 45 },
+      config: { sensitivity: 0.06, minPriceMillions: 1.5, maxPriceMillions: 135 },
     });
-    expect(repriced[0]?.newPriceMillions).toBeGreaterThan(12);
-    expect(repriced[1]?.newPriceMillions).toBeLessThan(2);
+    expect(repriced[0]?.newPriceMillions).toBeGreaterThan(36);
+    expect(repriced[1]?.newPriceMillions).toBeLessThan(6);
+    // Verifica que subidas y bajadas mantienen proporción x3 real
+    expect((repriced[0]?.deltaMillions ?? 0) >= 1.5).toBe(true);
+    expect((repriced[1]?.deltaMillions ?? 0) <= -0.3).toBe(true);
   });
 
-  it('mantiene equilibrio de precios tras 58 jornadas reales de simulación evitando inflación masiva hacia 45M', () => {
+  it('mantiene equilibrio de precios x3 y marcadores NBA realistas tras 58 jornadas reales de simulación', () => {
     const catalog = generateInitialUniverseCatalog('balance-market-58');
     expect(catalog.teams).toHaveLength(30);
     expect(catalog.teams.map((t) => t.name)).toContain('Los Angeles Rivers');
@@ -292,6 +401,8 @@ describe('simulación de partidos, puntuación configurable, bajas y economía',
       gamesCount.set(p.slug, 0);
     }
 
+    const teamScores: number[] = [];
+    const regTeamScores: number[] = [];
     for (let round = 1; round <= 58; round++) {
       const lastRoundFp = new Map<string, number>();
       const roundMatches = fixtures.filter((f) => f.roundNumber === round);
@@ -328,6 +439,10 @@ describe('simulación de partidos, puntuación configurable, bajas y economía',
           scoringWeights: DEFAULT_WEIGHTS,
           injuryConfig: DEFAULT_INJURY_CONFIG,
         });
+        teamScores.push(sim.homeScore, sim.awayScore);
+        if (sim.overtimeCount === 0) {
+          regTeamScores.push(sim.homeScore, sim.awayScore);
+        }
 
         for (const box of sim.playerBoxes) {
           lastRoundFp.set(box.playerId, box.fantasyPoints);
@@ -350,7 +465,7 @@ describe('simulación de partidos, puntuación configurable, bajas y economía',
             lastRoundFantasyPoints: lastRoundFp.get(p.slug) ?? null,
           };
         }),
-        config: { sensitivity: 0.06, minPriceMillions: 0.5, maxPriceMillions: 45 },
+        config: { sensitivity: 0.06, minPriceMillions: 1.5, maxPriceMillions: 135 },
       });
 
       for (const u of updates) {
@@ -358,19 +473,108 @@ describe('simulación de partidos, puntuación configurable, bajas y economía',
       }
     }
 
+    const avgTeamScore = teamScores.reduce((acc, v) => acc + v, 0) / Math.max(1, teamScores.length);
+    const maxRegTeamScore = Math.max(...regTeamScores);
+    expect(avgTeamScore).toBeGreaterThanOrEqual(98);
+    expect(avgTeamScore).toBeLessThanOrEqual(122);
+    expect(maxRegTeamScore).toBeLessThanOrEqual(152);
+
     const finalValues = [...prices.values()].sort((a, b) => a - b);
     const median = finalValues[Math.floor(finalValues.length / 2)] ?? 0;
-    const nearCap = finalValues.filter((v) => v >= 40).length;
+    const nearCap = finalValues.filter((v) => v >= 120).length;
     const dropped = catalog.players.filter(
-      (p) => (prices.get(p.slug) ?? p.basePriceMillions) < p.basePriceMillions - 0.5,
+      (p) => (prices.get(p.slug) ?? p.basePriceMillions) < p.basePriceMillions - 1.5,
     ).length;
     const rose = catalog.players.filter(
-      (p) => (prices.get(p.slug) ?? p.basePriceMillions) > p.basePriceMillions + 0.5,
+      (p) => (prices.get(p.slug) ?? p.basePriceMillions) > p.basePriceMillions + 1.5,
     ).length;
 
-    expect(median).toBeLessThan(12);
+    expect(median).toBeLessThan(36);
     expect(nearCap / finalValues.length).toBeLessThan(0.06);
     expect(dropped).toBeGreaterThan(80);
     expect(rose).toBeGreaterThan(50);
+  });
+
+  it('detiene minutos y estadísticas al alcanzar cualquier límite de descalificación sin suspender siguientes partidos', () => {
+    const catalog = generateInitialUniverseCatalog('dq-check-catalog');
+    const buildTeam = (code: string, teamId: string) => ({
+      id: teamId,
+      name: `Team ${code}`,
+      code,
+      roster: catalog.players
+        .filter((p) => p.templateTeamCode === code)
+        .map<EnginePlayerInput>((p, idx) => ({
+          id: `${code}-${String(idx)}`,
+          name: p.fullName,
+          position: p.position,
+          role: p.initialRole,
+          age: p.age,
+          status: 'HEALTHY',
+          overallRating: p.overallRating,
+          offense: p.offense,
+          defense: p.defense,
+          playmaking: p.playmaking,
+          rebounding: p.rebounding,
+          athleticism: p.athleticism,
+          iq: p.iq,
+          priceMillions: p.basePriceMillions,
+        })),
+    });
+
+    const home = buildTeam('LAR', 'h-dq');
+    const away = buildTeam('LAG', 'a-dq');
+    const dqReasonsSeen = new Set<string>();
+    let negativeScoreSeen = false;
+
+    for (let i = 0; i < 60; i += 1) {
+      const sim = simulateBasketballMatch({
+        homeTeam: home,
+        awayTeam: away,
+        seed: `dq-seed-${String(i)}`,
+        scoringWeights: DEFAULT_WEIGHTS,
+        injuryConfig: DEFAULT_INJURY_CONFIG,
+      });
+
+      for (const box of sim.playerBoxes) {
+        if (box.fantasyPoints < 0) {
+          negativeScoreSeen = true;
+        }
+        const computed = calculatePlayerDreamPointsBreakdown(
+          {
+            pts: box.pts,
+            reb: box.reb,
+            ast: box.ast,
+            stl: box.stl,
+            blk: box.blk,
+            tov: box.tov,
+            pf: box.pf,
+            tf: box.tf,
+            ft1: box.ft1,
+            ft2: box.ft2,
+            minutes: box.minutes,
+          },
+          DEFAULT_WEIGHTS,
+        );
+        expect(box.fantasyPoints).toBe(computed.total);
+        expect(box.td).toBe(computed.tdCount);
+
+        if (box.disqualified) {
+          expect(box.ejected).toBe(true);
+          expect(box.disqualificationReason).not.toBeNull();
+          if (box.disqualificationReason) {
+            dqReasonsSeen.add(box.disqualificationReason);
+          }
+          expect(box.pf === 6 || box.tf === 2 || box.ft1 === 2 || box.ft2 === 1).toBe(true);
+          expect(box.minutes).toBeLessThanOrEqual(48);
+          if (!box.injured) {
+            expect(box.nextStatus).not.toBe('SUSPENDED');
+            expect(box.nextGamesOut).toBe(0);
+          }
+        }
+      }
+    }
+
+    expect(dqReasonsSeen.size).toBeGreaterThan(0);
+    expect(negativeScoreSeen).toBe(true);
   });
 });

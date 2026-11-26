@@ -1,6 +1,7 @@
 import { randomInt, randomUUID } from 'node:crypto';
 
 import {
+  DEFAULT_LEAGUE_TIME_ZONE,
   LEAGUE_RULES,
   type MarketMode,
   type Position,
@@ -12,6 +13,7 @@ import {
   getDaysInCalendarMonth,
   INITIAL_TEAMS,
   LEGACY_TEAM_CODES_IN_SLOT_ORDER,
+  resolveZonedDateIso,
 } from '@dream5/simulation-engine';
 
 import { Prisma, type PrismaClient } from '../generated/prisma/client.js';
@@ -30,6 +32,11 @@ const SPANISH_MONTH_NAMES = [
   'Noviembre',
   'Diciembre',
 ] as const;
+
+export function resolveLeagueTimeZone(): string {
+  const envTz = process.env['TZ']?.trim();
+  return envTz && envTz.length > 0 ? envTz : DEFAULT_LEAGUE_TIME_ZONE;
+}
 
 export function formatSpanishSeasonName(seasonNumber: number, year: number, month: number): string {
   const monthLabel = SPANISH_MONTH_NAMES[month - 1] ?? `Mes ${String(month)}`;
@@ -300,13 +307,23 @@ export async function instantiateLeagueInTx(
   }
 
   const now = new Date();
-  const calendarYear = params.calendarYear ?? now.getUTCFullYear();
-  const calendarMonth = params.calendarMonth ?? now.getUTCMonth() + 1;
+  const timeZone = resolveLeagueTimeZone();
+  const calendarYear = params.calendarYear ?? now.getFullYear();
+  const calendarMonth = params.calendarMonth ?? now.getMonth() + 1;
   const daysInMonth = getDaysInCalendarMonth(calendarYear, calendarMonth);
   const simulationSeed = params.simulationSeed ?? `league-${randomUUID()}`;
   const leagueId = randomUUID();
   const seasonId = randomUUID();
-  const initialClock = new Date(Date.UTC(calendarYear, calendarMonth - 1, 1, 7, 30, 0, 0));
+  const initialClock = new Date(
+    resolveZonedDateIso({
+      year: calendarYear,
+      month: calendarMonth,
+      dayOfMonth: 1,
+      hour: 7,
+      minute: 30,
+      timeZone,
+    }),
+  );
 
   await tx.league.create({
     data: {
@@ -319,6 +336,7 @@ export async function instantiateLeagueInTx(
       gameClockAt: initialClock,
       simulationSeed,
       scoringConfigJson: PROVISIONAL_GAME_CONFIG.scoringWeights,
+      marketScale: 3,
     },
   });
 
@@ -457,6 +475,7 @@ export async function instantiateLeagueInTx(
     month: calendarMonth,
     startHour: LEAGUE_RULES.dailyWindowStartHour,
     endHour: LEAGUE_RULES.dailyWindowEndHour,
+    timeZone,
   });
 
   const matchRows: Prisma.MatchCreateManyInput[] = fixtures.map((f) => ({

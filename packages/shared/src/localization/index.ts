@@ -22,7 +22,33 @@ const DISCIPLINE_BASE_PHRASES: readonly BilingualPhrase[] = [
     en: 'Minor post-game soreness (questionable)',
   },
   { es: 'Sobrecarga leve', en: 'Minor soreness' },
+  { es: 'DQ_PF_6', en: 'Disqualified: 6 personal fouls' },
+  { es: 'DQ_TF_2', en: 'Disqualified: 2 technical fouls' },
+  { es: 'DQ_FT1_2', en: 'Disqualified: 2 Flagrant 1 fouls' },
+  { es: 'DQ_FT2_1', en: 'Disqualified: Flagrant 2 foul' },
 ];
+
+export function localizeDisqualificationReason(
+  reason: string | null | undefined,
+  language: AppLanguage,
+): string {
+  const code = reason?.trim() ?? '';
+  if (!code) {
+    return '';
+  }
+  switch (code) {
+    case 'DQ_PF_6':
+      return language === 'es' ? 'Descalificado (6 faltas personales)' : 'Disqualified (6 PF)';
+    case 'DQ_TF_2':
+      return language === 'es' ? 'Descalificado (2 faltas técnicas)' : 'Disqualified (2 TF)';
+    case 'DQ_FT1_2':
+      return language === 'es' ? 'Descalificado (2 flagrantes tipo 1)' : 'Disqualified (2 FT1)';
+    case 'DQ_FT2_1':
+      return language === 'es' ? 'Descalificado (flagrante tipo 2)' : 'Disqualified (1 FT2)';
+    default:
+      return localizeDisciplineReason(code, language);
+  }
+}
 
 /**
  * Traduce descripciones médicas o disciplinarias persistidas en BD tanto si se
@@ -135,4 +161,20 @@ export function localizeTransferResponseNote(
   }
 
   return raw;
+}
+
+/**
+ * Formatea un número decimal eliminando ceros decimales sobrantes (p. ej. 1023.0 -> "1023").
+ */
+export function formatCleanDecimal(value: number, maxDecimals = 1): string {
+  if (!Number.isFinite(value)) {
+    return '0';
+  }
+  const factor = 10 ** maxDecimals;
+  const rounded = Math.round(value * factor) / factor;
+  const normalized = Object.is(rounded, -0) ? 0 : rounded;
+  if (Number.isInteger(normalized)) {
+    return String(normalized);
+  }
+  return normalized.toFixed(maxDecimals).replace(/\.?0+$/, '');
 }

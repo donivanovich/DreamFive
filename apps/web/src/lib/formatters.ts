@@ -1,4 +1,8 @@
+import { formatCleanDecimal } from '@dream5/shared';
+
 import type { AvailabilityStatus, PlayerRole, Position } from '@/types/fantasy';
+
+export { formatCleanDecimal };
 
 export const POSITION_LABELS: Record<Position, string> = {
   PG: 'Base',
@@ -24,12 +28,27 @@ export const ROLE_SHORT_LABELS: Record<PlayerRole, string> = {
   Calientabanquillos: 'Banquillo',
 };
 
+export function formatStatNumber(value: number, maxDecimals = 1): string {
+  return formatCleanDecimal(value, maxDecimals);
+}
+
+export function formatLocaleDecimal(value: number, locale: string, maxDecimals = 1): string {
+  if (!Number.isFinite(value)) {
+    return '0';
+  }
+  const factor = 10 ** maxDecimals;
+  const rounded = Math.round(value * factor) / factor;
+  const normalized = Object.is(rounded, -0) ? 0 : rounded;
+  return normalized.toLocaleString(locale, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: maxDecimals,
+  });
+}
+
 export function formatMillions(value: number): string {
   const scaledHundredths = Math.round(Math.abs(value) * 100);
-  if (scaledHundredths % 10 !== 0) {
-    return `${value.toFixed(2)}M`;
-  }
-  return `${value.toFixed(1)}M`;
+  const maxDecimals = scaledHundredths % 10 !== 0 ? 2 : 1;
+  return `${formatCleanDecimal(value, maxDecimals)}M`;
 }
 
 export function formatExactCreditsFromMillions(
@@ -43,10 +62,10 @@ export function formatExactCreditsFromMillions(
 
 export function formatDeltaMillions(delta: number): string {
   if (Math.abs(delta) < 0.05) {
-    return '0.0M';
+    return '0M';
   }
   const sign = delta > 0 ? '+' : '';
-  return `${sign}${delta.toFixed(1)}M`;
+  return `${sign}${formatCleanDecimal(delta, 1)}M`;
 }
 
 export function sumSquadValueMillions(

@@ -96,7 +96,7 @@ function SidebarContent({
           <img
             src="/dream5-logo.png"
             alt="DREAM5"
-            className="h-9 w-9 shrink-0 rounded-md object-cover shadow-[0_0_20px_color-mix(in_srgb,var(--primary)_28%,transparent)]"
+            className="h-9 w-9 shrink-0 object-contain drop-shadow-[0_2px_10px_color-mix(in_srgb,var(--primary)_22%,transparent)]"
           />
           <span className="flex flex-col leading-none">
             <span className="font-display text-xl font-bold tracking-wider text-foreground">
@@ -298,14 +298,14 @@ export function AppShell({ children }: { readonly children: ReactNode }) {
     return (
       <div
         {...backgroundHandlers}
-        className="min-h-screen overflow-x-hidden bg-background px-4 py-10 text-foreground"
+        className="min-h-screen overflow-x-clip bg-background px-4 py-10 text-foreground"
       >
         <div className="mx-auto mb-8 flex max-w-lg items-center gap-3">
           <Link to="/" className="flex items-center gap-3 focus:outline-none">
             <img
               src="/dream5-logo.png"
               alt="DREAM5"
-              className="h-10 w-10 shrink-0 rounded-md object-cover shadow-[0_0_20px_color-mix(in_srgb,var(--primary)_28%,transparent)]"
+              className="h-10 w-10 shrink-0 object-contain drop-shadow-[0_2px_10px_color-mix(in_srgb,var(--primary)_22%,transparent)]"
             />
             <div>
               <p className="font-display text-2xl font-bold tracking-wider uppercase">DREAM5</p>
@@ -323,13 +323,13 @@ export function AppShell({ children }: { readonly children: ReactNode }) {
     return (
       <div
         {...backgroundHandlers}
-        className="min-h-screen overflow-x-hidden bg-background px-4 py-10 text-foreground"
+        className="min-h-screen overflow-x-clip bg-background px-4 py-10 text-foreground"
       >
         <div className="mx-auto mb-8 flex max-w-5xl items-center gap-3">
           <img
             src="/dream5-logo.png"
             alt="DREAM5"
-            className="h-10 w-10 shrink-0 rounded-md object-cover shadow-[0_0_20px_color-mix(in_srgb,var(--primary)_28%,transparent)]"
+            className="h-10 w-10 shrink-0 object-contain drop-shadow-[0_2px_10px_color-mix(in_srgb,var(--primary)_22%,transparent)]"
           />
           <div>
             <p className="font-display text-2xl font-bold tracking-wider uppercase">DREAM5</p>
@@ -345,7 +345,7 @@ export function AppShell({ children }: { readonly children: ReactNode }) {
   return (
     <div
       {...backgroundHandlers}
-      className="flex min-h-screen overflow-x-hidden bg-background text-foreground"
+      className="flex min-h-screen overflow-x-clip bg-background text-foreground"
     >
       <aside className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:block lg:w-60 lg:border-r lg:border-border">
         <SidebarContent pathname={pathname} pendingInvitationsCount={pendingInvitationsCount} />
@@ -374,7 +374,7 @@ export function AppShell({ children }: { readonly children: ReactNode }) {
       ) : null}
 
       <div className="flex min-w-0 flex-1 flex-col lg:pl-60">
-        <header className="sticky top-0 z-20 flex h-16 min-w-0 items-center justify-between gap-2 border-b border-border bg-sidebar/95 px-3 backdrop-blur sm:gap-3 sm:px-4 md:px-6">
+        <header className="sticky top-0 z-30 flex h-16 min-w-0 items-center justify-between gap-2 border-b border-border bg-sidebar/95 px-3 backdrop-blur sm:gap-3 sm:px-4 md:px-6">
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             <button
               type="button"
@@ -520,7 +520,7 @@ export function AppShell({ children }: { readonly children: ReactNode }) {
           </div>
         </header>
 
-        <main className="mx-auto w-full max-w-[1440px] min-w-0 flex-1 overflow-x-hidden px-3 py-4 sm:px-4 sm:py-5 md:px-6 md:py-6">
+        <main className="mx-auto w-full max-w-[1440px] min-w-0 flex-1 overflow-x-clip px-3 py-4 sm:px-4 sm:py-5 md:px-6 md:py-6">
           {children}
         </main>
       </div>

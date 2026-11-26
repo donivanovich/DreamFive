@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { localizeDisciplineReason, localizeTransferResponseNote } from './index.js';
+import {
+  formatCleanDecimal,
+  localizeDisciplineReason,
+  localizeTransferResponseNote,
+} from './index.js';
 
 describe('localizeDisciplineReason', () => {
   it('translates legacy Spanish injury notes cleanly to English and vice versa', () => {
@@ -39,5 +43,18 @@ describe('localizeTransferResponseNote', () => {
         'en',
       ),
     ).toBe('The Denver Lingots sent you a balanced trade proposal.');
+  });
+});
+
+describe('formatCleanDecimal', () => {
+  it('omits trailing .0 for whole values and keeps meaningful decimals', () => {
+    expect(formatCleanDecimal(1023.0)).toBe('1023');
+    expect(formatCleanDecimal(1023.04)).toBe('1023');
+    expect(formatCleanDecimal(1023.5)).toBe('1023.5');
+    expect(formatCleanDecimal(0.0)).toBe('0');
+    expect(formatCleanDecimal(-0.02)).toBe('0');
+    expect(formatCleanDecimal(-3.0)).toBe('-3');
+    expect(formatCleanDecimal(75.2, 2)).toBe('75.2');
+    expect(formatCleanDecimal(75.25, 2)).toBe('75.25');
   });
 });

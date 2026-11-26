@@ -1,5 +1,5 @@
 import { evaluateInGameDiscipline } from '../injuries/index.js';
-import { calculatePlayerFantasyPoints } from '../scoring/index.js';
+import { calculatePlayerDreamPointsBreakdown } from '../scoring/index.js';
 import { createSeededRng, type DeterministicRng } from '../shared/prng.js';
 import type {
   EngineInjuryConfig,
@@ -154,7 +154,7 @@ function generateTeamBoxes(params: {
   const teamVariance = rng.nextGaussian() * 0.07;
 
   for (const player of team.roster) {
-    const plannedMinutes = minutesById.get(player.id) ?? 0;
+    const plannedMinutes = Math.min(48, minutesById.get(player.id) ?? 0);
     const discipline = evaluateInGameDiscipline({
       player,
       minutesPlayed: plannedMinutes,
@@ -162,12 +162,11 @@ function generateTeamBoxes(params: {
       rng,
     });
 
-    const effectiveMinutes =
-      discipline.injured || discipline.ejected
-        ? Math.max(4, Math.round(plannedMinutes * rng.nextRange(0.25, 0.7)))
-        : plannedMinutes;
+    const injuryMinute = discipline.injured
+      ? Math.max(2, Math.round(plannedMinutes * rng.nextRange(0.25, 0.7)))
+      : Number.POSITIVE_INFINITY;
 
-    if (effectiveMinutes <= 0) {
+    if (plannedMinutes <= 0) {
       boxes.push({
         playerId: player.id,
         playerName: player.name,
@@ -181,10 +180,16 @@ function generateTeamBoxes(params: {
         ast: 0,
         stl: 0,
         blk: 0,
+        td: 0,
         tov: 0,
         pf: 0,
+        tf: 0,
+        ft1: 0,
+        ft2: 0,
         fantasyPoints: 0,
         ejected: false,
+        disqualified: false,
+        disqualificationReason: null,
         injured: false,
         nextStatus: discipline.nextStatus,
         nextGamesOut: discipline.nextGamesOut,
@@ -198,71 +203,159 @@ function generateTeamBoxes(params: {
       Math.min(1.16, 1 + (player.overallRating - opponentStrength) * 0.008),
     );
     const perMinuteSkill =
-      (0.32 + (player.offense / 100) * 0.42 + homeBoost + teamVariance) * oppFactor;
-    const hotHand = rng.nextGaussian() * 0.18;
+      (0.09 + (player.offense / 100) * 0.45 + homeBoost * 0.65 + teamVariance * 0.65) * oppFactor;
+    const hotHand = rng.nextGaussian() * 0.11;
 
-    const pts = Math.max(
-      0,
-      Math.round(effectiveMinutes * Math.max(0.12, perMinuteSkill + hotHand)),
+    const ptsRate = Math.max(0.08, perMinuteSkill + hotHand);
+    const rebRate = Math.max(0.03, 0.085 + (player.rebounding / 100) * 0.24);
+    const astRate = Math.max(0.02, 0.045 + (player.playmaking / 100) * 0.23);
+    const stlRate = Math.max(0.006, 0.015 + (player.defense / 100) * 0.04);
+    const blkRate = Math.max(
+      0.004,
+      (player.position === 'C' || player.position === 'PF' ? 0.045 : 0.014) * (player.defense / 80),
     );
-    const reb = Math.max(
-      0,
-      Math.round(
-        effectiveMinutes * (0.09 + (player.rebounding / 100) * 0.24) + rng.nextGaussian() * 1.4,
-      ),
-    );
-    const ast = Math.max(
-      0,
-      Math.round(
-        effectiveMinutes * (0.05 + (player.playmaking / 100) * 0.23) + rng.nextGaussian() * 1.2,
-      ),
-    );
-    const stl = Math.max(
-      0,
-      Math.round(
-        effectiveMinutes * (0.015 + (player.defense / 100) * 0.04) + rng.nextRange(-0.4, 0.9),
-      ),
-    );
-    const blk = Math.max(
-      0,
-      Math.round(
-        effectiveMinutes *
-          (player.position === 'C' || player.position === 'PF' ? 0.045 : 0.014) *
-          (player.defense / 80) +
-          rng.nextRange(-0.4, 0.8),
-      ),
-    );
-    const tov = Math.max(
-      0,
-      Math.round(effectiveMinutes * (0.075 - (player.iq / 100) * 0.03) + rng.nextRange(-0.5, 1.1)),
-    );
-    const pf = Math.min(
-      6,
-      Math.max(0, Math.round(effectiveMinutes * 0.08 + rng.nextRange(-0.6, 1.4))),
-    );
+    const tovRate = Math.max(0.015, 0.075 - (player.iq / 100) * 0.03);
+    const pfRate = Math.max(0.04, 0.092 - (player.iq / 100) * 0.02 + rng.nextRange(-0.012, 0.025));
+    const roleDisciplineScale = injuryConfig.ejectionChanceByRole[player.role] / 0.008;
+    const tfRate = 0.0022 * roleDisciplineScale;
+    const ft1Rate = 0.0007 * roleDisciplineScale;
+    const ft2Rate = 0.00022 * roleDisciplineScale;
 
-    const fantasyPoints = calculatePlayerFantasyPoints(
-      { pts, reb, ast, stl, blk, tov, pf, minutes: effectiveMinutes },
+    let minutesPlayed = 0;
+    let pts = 0;
+    let reb = 0;
+    let ast = 0;
+    let stl = 0;
+    let blk = 0;
+    let tov = 0;
+    let pf = 0;
+    let tf = 0;
+    let ft1 = 0;
+    let ft2 = 0;
+
+    let ptsCarry = 0;
+    let rebCarry = 0;
+    let astCarry = 0;
+    let tovCarry = 0;
+
+    let disqualified = false;
+    let disqualificationReason: string | null = null;
+    let injuredDuringMatch = false;
+
+    for (let minute = 1; minute <= plannedMinutes; minute += 1) {
+      ptsCarry += ptsRate * rng.nextRange(0.55, 1.45);
+      const ptsStep = Math.floor(ptsCarry);
+      if (ptsStep > 0) {
+        pts += ptsStep;
+        ptsCarry -= ptsStep;
+      }
+
+      rebCarry += rebRate * rng.nextRange(0.45, 1.55);
+      const rebStep = Math.floor(rebCarry);
+      if (rebStep > 0) {
+        reb += rebStep;
+        rebCarry -= rebStep;
+      }
+
+      astCarry += astRate * rng.nextRange(0.45, 1.55);
+      const astStep = Math.floor(astCarry);
+      if (astStep > 0) {
+        ast += astStep;
+        astCarry -= astStep;
+      }
+
+      if (rng.nextFloat() < Math.min(0.35, stlRate)) {
+        stl += 1;
+      }
+      if (rng.nextFloat() < Math.min(0.35, blkRate)) {
+        blk += 1;
+      }
+
+      tovCarry += tovRate * rng.nextRange(0.4, 1.6);
+      const tovStep = Math.floor(tovCarry);
+      if (tovStep > 0) {
+        tov += tovStep;
+        tovCarry -= tovStep;
+      }
+
+      if (rng.nextFloat() < pfRate) {
+        pf += 1;
+      }
+      if (pf < 6 && rng.nextFloat() < tfRate * (tf === 1 ? 1.8 : 1)) {
+        tf += 1;
+      }
+      if (pf < 6 && tf < 2 && rng.nextFloat() < ft1Rate) {
+        ft1 += 1;
+      }
+      if (pf < 6 && tf < 2 && ft1 < 2 && rng.nextFloat() < ft2Rate) {
+        ft2 += 1;
+      }
+
+      minutesPlayed = minute;
+
+      // Al alcanzar cualquier límite de descalificación, se expulsa en el partido actual y cesan sus estadísticas
+      if (pf >= 6) {
+        disqualified = true;
+        disqualificationReason = 'DQ_PF_6';
+        break;
+      }
+      if (tf >= 2) {
+        disqualified = true;
+        disqualificationReason = 'DQ_TF_2';
+        break;
+      }
+      if (ft1 >= 2) {
+        disqualified = true;
+        disqualificationReason = 'DQ_FT1_2';
+        break;
+      }
+      if (ft2 >= 1) {
+        disqualified = true;
+        disqualificationReason = 'DQ_FT2_1';
+        break;
+      }
+      if (discipline.injured && minute >= injuryMinute) {
+        injuredDuringMatch = true;
+        break;
+      }
+    }
+
+    const breakdown = calculatePlayerDreamPointsBreakdown(
+      { pts, reb, ast, stl, blk, tov, pf, tf, ft1, ft2, minutes: minutesPlayed },
       scoringWeights,
     );
 
-    if (discipline.injured) {
+    if (injuredDuringMatch) {
       events.push({
-        quarter: rng.nextInt(1, 4),
+        quarter: Math.min(
+          4,
+          Math.max(1, Math.ceil((minutesPlayed / Math.max(1, plannedMinutes)) * 4)),
+        ),
         clockLabel: `0${String(rng.nextInt(1, 9))}:${String(rng.nextInt(10, 59))}`,
         eventType: 'INJURY',
         playerId: player.id,
         teamId: team.id,
-        description: `${player.name} (${team.code}) abandona la pista: ${discipline.reason ?? 'lesión'}.`,
+        description: `${player.name} (${team.code}) leaves the court: ${discipline.reason ?? 'injury'}.`,
       });
-    } else if (discipline.ejected) {
+    } else if (disqualified && disqualificationReason) {
+      const dqDetail =
+        disqualificationReason === 'DQ_PF_6'
+          ? '6 PF'
+          : disqualificationReason === 'DQ_TF_2'
+            ? '2 TF'
+            : disqualificationReason === 'DQ_FT1_2'
+              ? '2 FT1'
+              : 'Flagrant 2';
       events.push({
-        quarter: rng.nextInt(2, 4),
+        quarter: Math.min(
+          4,
+          Math.max(1, Math.ceil((minutesPlayed / Math.max(1, plannedMinutes)) * 4)),
+        ),
         clockLabel: `0${String(rng.nextInt(1, 7))}:${String(rng.nextInt(10, 59))}`,
         eventType: 'EJECTION',
         playerId: player.id,
         teamId: team.id,
-        description: `${player.name} (${team.code}) es expulsado del encuentro.`,
+        description: `${player.name} (${team.code}) disqualified from match (${dqDetail}, min ${String(minutesPlayed)}).`,
       });
     }
 
@@ -273,20 +366,31 @@ function generateTeamBoxes(params: {
       role: player.role,
       teamId: team.id,
       wasStarter: starterIds.has(player.id),
-      minutes: effectiveMinutes,
+      minutes: minutesPlayed,
       pts,
       reb,
       ast,
       stl,
       blk,
+      td: breakdown.tdCount,
       tov,
       pf,
-      fantasyPoints,
-      ejected: discipline.ejected,
-      injured: discipline.injured,
-      nextStatus: discipline.nextStatus,
-      nextGamesOut: discipline.nextGamesOut,
-      statusReason: discipline.reason,
+      tf,
+      ft1,
+      ft2,
+      fantasyPoints: breakdown.total,
+      ejected: disqualified,
+      disqualified,
+      disqualificationReason,
+      injured: injuredDuringMatch,
+      // La descalificación se aplica únicamente al partido actual; solo las lesiones causan baja posterior
+      nextStatus: injuredDuringMatch
+        ? discipline.nextStatus
+        : discipline.injured
+          ? 'HEALTHY'
+          : discipline.nextStatus,
+      nextGamesOut: injuredDuringMatch ? discipline.nextGamesOut : 0,
+      statusReason: injuredDuringMatch ? discipline.reason : null,
     });
   }
 
@@ -368,45 +472,31 @@ export function simulateBasketballMatch(params: {
       awayOtBoost += rng.nextFloat() < 0.5 ? 2 : -2;
     }
 
-    const homeScorerIdx = mutableBoxes.findIndex(
-      (b) => b.teamId === homeTeam.id && b.minutes > 0 && !b.injured && !b.ejected,
-    );
-    const awayScorerIdx = mutableBoxes.findIndex(
-      (b) => b.teamId === awayTeam.id && b.minutes > 0 && !b.injured && !b.ejected,
-    );
+    const applyOvertimeScorer = (teamId: string, otPts: number): void => {
+      const idx = mutableBoxes.findIndex(
+        (b) => b.teamId === teamId && b.minutes > 0 && !b.injured && !b.ejected && !b.disqualified,
+      );
+      const target = idx >= 0 ? mutableBoxes[idx] : undefined;
+      if (!target) {
+        return;
+      }
+      const updatedPts = target.pts + otPts;
+      const updatedMins = Math.min(48, target.minutes + 5);
+      const updatedBreakdown = calculatePlayerDreamPointsBreakdown(
+        { ...target, pts: updatedPts, minutes: updatedMins },
+        scoringWeights,
+      );
+      mutableBoxes[idx] = {
+        ...target,
+        pts: updatedPts,
+        minutes: updatedMins,
+        td: updatedBreakdown.tdCount,
+        fantasyPoints: updatedBreakdown.total,
+      };
+    };
 
-    if (homeScorerIdx >= 0) {
-      const target = mutableBoxes[homeScorerIdx];
-      if (target) {
-        const updatedPts = target.pts + homeOtBoost;
-        const updatedMins = Math.min(53, target.minutes + 5);
-        mutableBoxes[homeScorerIdx] = {
-          ...target,
-          pts: updatedPts,
-          minutes: updatedMins,
-          fantasyPoints: calculatePlayerFantasyPoints(
-            { ...target, pts: updatedPts, minutes: updatedMins },
-            scoringWeights,
-          ),
-        };
-      }
-    }
-    if (awayScorerIdx >= 0) {
-      const target = mutableBoxes[awayScorerIdx];
-      if (target) {
-        const updatedPts = target.pts + awayOtBoost;
-        const updatedMins = Math.min(53, target.minutes + 5);
-        mutableBoxes[awayScorerIdx] = {
-          ...target,
-          pts: updatedPts,
-          minutes: updatedMins,
-          fantasyPoints: calculatePlayerFantasyPoints(
-            { ...target, pts: updatedPts, minutes: updatedMins },
-            scoringWeights,
-          ),
-        };
-      }
-    }
+    applyOvertimeScorer(homeTeam.id, homeOtBoost);
+    applyOvertimeScorer(awayTeam.id, awayOtBoost);
 
     homeScore += homeOtBoost;
     awayScore += awayOtBoost;

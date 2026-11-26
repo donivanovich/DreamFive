@@ -294,7 +294,7 @@ function renderEmailShell(params: {
   readonly footer: string;
 }): string {
   const logoHtml = params.hasLogo
-    ? `<img src="cid:${DREAM5_LOGO_CID}" alt="DREAM5" width="36" height="36" style="width:36px;height:36px;border-radius:8px;display:block;border:0;" />`
+    ? `<img src="cid:${DREAM5_LOGO_CID}" alt="DREAM5" width="36" height="36" style="width:36px;height:36px;object-fit:contain;display:block;border:0;" />`
     : '';
   const brandRow = `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:8px;"><tr>${
     logoHtml ? `<td style="padding-right:10px;vertical-align:middle;">${logoHtml}</td>` : ''

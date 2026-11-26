@@ -12,6 +12,60 @@ export interface RoundCalendarDay {
   readonly scheduledAtIso: string;
 }
 
+export interface ScheduledMatchSlot {
+  readonly dayOfMonth: number;
+  readonly roundNumber: number;
+  readonly matchIndexInRound: number;
+  readonly scheduledAtIso: string;
+}
+
+/**
+ * Convierte una fecha/hora de reloj de pared `(year, month, dayOfMonth, hour, minute)` en una zona
+ * horaria IANA concreta (p. ej. `Europe/Madrid`) a su instante ISO UTC exacto.
+ */
+export function resolveZonedDateIso(params: {
+  readonly year: number;
+  readonly month: number;
+  readonly dayOfMonth: number;
+  readonly hour: number;
+  readonly minute: number;
+  readonly timeZone?: string;
+}): string {
+  const { year, month, dayOfMonth, hour, minute, timeZone } = params;
+  const utcGuessMs = Date.UTC(year, month - 1, dayOfMonth, hour, minute, 0, 0);
+  if (!timeZone || timeZone === 'UTC') {
+    return new Date(utcGuessMs).toISOString();
+  }
+
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).formatToParts(new Date(utcGuessMs));
+
+  const readPart = (type: Intl.DateTimeFormatPartTypes): number => {
+    const raw = parts.find((p) => p.type === type)?.value;
+    return raw ? Number.parseInt(raw, 10) : 0;
+  };
+
+  const renderedHour = readPart('hour') === 24 ? 0 : readPart('hour');
+  const tzRenderedAsUtcMs = Date.UTC(
+    readPart('year'),
+    readPart('month') - 1,
+    readPart('day'),
+    renderedHour,
+    readPart('minute'),
+    readPart('second'),
+  );
+  const offsetMs = tzRenderedAsUtcMs - utcGuessMs;
+  return new Date(utcGuessMs - offsetMs).toISOString();
+}
+
 /**
  * Devuelve el número exacto de días del mes natural teniendo en cuenta años bisiestos.
  */
@@ -59,55 +113,93 @@ export function buildDailyRoundCounts(daysInMonth: number): readonly number[] {
 }
 
 /**
- * Asigna las 58 jornadas a fechas/horas reales escalonadas entre startHour (08:00)
- * y endHour (20:00) UTC en el mes natural indicado.
+ * Reparte equitativamente todos los partidos de cada día natural entre `startHour` (08:00)
+ * y `endHour` (20:00) respetando estrictamente el orden cronológico de jornadas y partidos:
+ * - Día de 2 jornadas (30 partidos): intervalos uniformes de ~25 minutos desde las 08:00 hasta las 20:00.
+ * - Día de 1 jornada (15 partidos): intervalos uniformes de ~51 minutos desde las 08:00 hasta las 20:00.
+ * - Día de 3 jornadas (45 partidos): intervalos uniformes de ~16 minutos desde las 08:00 hasta las 20:00.
+ */
+export function distributeMatchSlotsAcrossMonth(params: {
+  readonly year: number;
+  readonly month: number;
+  readonly startHour?: number;
+  readonly endHour?: number;
+  readonly matchesPerRound?: number;
+  readonly timeZone?: string;
+}): readonly ScheduledMatchSlot[] {
+  const { year, month, startHour = 8, endHour = 20, matchesPerRound = 15, timeZone } = params;
+  const daysInMonth = getDaysInCalendarMonth(year, month);
+  const dailyCounts = buildDailyRoundCounts(daysInMonth);
+  const spanMinutes = Math.max(0, (endHour - startHour) * 60);
+  const startBaseMinutes = startHour * 60;
+  const slots: ScheduledMatchSlot[] = [];
+  let nextRoundNumber = 1;
+
+  for (let dayIdx = 0; dayIdx < dailyCounts.length; dayIdx += 1) {
+    const dayOfMonth = dayIdx + 1;
+    const roundsToday = dailyCounts[dayIdx] ?? 2;
+    const totalSlotsToday = roundsToday * matchesPerRound;
+
+    for (let slotIdx = 0; slotIdx < totalSlotsToday; slotIdx += 1) {
+      const roundOffset = Math.floor(slotIdx / matchesPerRound);
+      const matchIndexInRound = slotIdx % matchesPerRound;
+      const roundNumber = nextRoundNumber + roundOffset;
+      const offsetMinutes =
+        totalSlotsToday > 1 ? Math.round((slotIdx * spanMinutes) / (totalSlotsToday - 1)) : 0;
+      const totalMinutes = startBaseMinutes + offsetMinutes;
+      const hour = Math.floor(totalMinutes / 60);
+      const minute = totalMinutes % 60;
+
+      slots.push({
+        dayOfMonth,
+        roundNumber,
+        matchIndexInRound,
+        scheduledAtIso: resolveZonedDateIso({
+          year,
+          month,
+          dayOfMonth,
+          hour,
+          minute,
+          ...(timeZone ? { timeZone } : {}),
+        }),
+      });
+    }
+
+    nextRoundNumber += roundsToday;
+  }
+
+  return slots;
+}
+
+/**
+ * Devuelve la hora de apertura de cada una de las 58 jornadas entre startHour (08:00)
+ * y endHour (20:00) dentro del mes natural indicado.
  */
 export function distributeRoundsAcrossMonth(params: {
   readonly year: number;
   readonly month: number;
   readonly startHour?: number;
   readonly endHour?: number;
+  readonly timeZone?: string;
 }): readonly RoundCalendarDay[] {
-  const { year, month, startHour = 8, endHour = 20 } = params;
-  const daysInMonth = getDaysInCalendarMonth(year, month);
-  const dailyCounts = buildDailyRoundCounts(daysInMonth);
-  const result: RoundCalendarDay[] = [];
-  let roundNumber = 1;
-
-  for (let dayIdx = 0; dayIdx < dailyCounts.length; dayIdx += 1) {
-    const dayOfMonth = dayIdx + 1;
-    const count = dailyCounts[dayIdx] ?? 2;
-
-    const hoursForCount =
-      count === 1
-        ? [(startHour + endHour) / 2]
-        : count === 2
-          ? [startHour + 1, endHour - 2]
-          : [startHour, Math.round((startHour + endHour) / 2), endHour - 1];
-
-    for (const hour of hoursForCount) {
-      const wholeHour = Math.floor(hour);
-      const minutes = Math.round((hour - wholeHour) * 60);
-      const scheduledAt = new Date(Date.UTC(year, month - 1, dayOfMonth, wholeHour, minutes, 0, 0));
-      result.push({
-        dayOfMonth,
-        roundNumber,
-        scheduledAtIso: scheduledAt.toISOString(),
+  const matchSlots = distributeMatchSlotsAcrossMonth(params);
+  const rounds: RoundCalendarDay[] = [];
+  for (const slot of matchSlots) {
+    if (slot.matchIndexInRound === 0) {
+      rounds.push({
+        dayOfMonth: slot.dayOfMonth,
+        roundNumber: slot.roundNumber,
+        scheduledAtIso: slot.scheduledAtIso,
       });
-      roundNumber += 1;
     }
   }
-
-  return result;
+  return rounds;
 }
 
 /**
  * Genera un calendario completo de ida y vuelta (Berger / Circle Method) para un
  * número par de equipos (30 equipos -> 29 jornadas de ida + 29 de vuelta = 58).
- * Garantiza:
- * - Ningún equipo juega más de una vez en una misma jornada.
- * - No se repite emparejamiento dentro de la primera vuelta (435 cruces únicos).
- * - La segunda vuelta invierte local y visitante respecto a la primera.
+ * Reparte los partidos de cada jornada equitativamente entre `startHour` y `endHour`.
  */
 export function generateDoubleRoundRobinFixtures(params: {
   readonly teamIds: readonly string[];
@@ -115,8 +207,9 @@ export function generateDoubleRoundRobinFixtures(params: {
   readonly month: number;
   readonly startHour?: number;
   readonly endHour?: number;
+  readonly timeZone?: string;
 }): readonly ScheduledFixture[] {
-  const { teamIds, year, month, startHour, endHour } = params;
+  const { teamIds, year, month, startHour, endHour, timeZone } = params;
   const n = teamIds.length;
   if (n < 2 || n % 2 !== 0) {
     throw new Error(`El calendario requiere un número par de equipos (recibido: ${String(n)})`);
@@ -124,18 +217,27 @@ export function generateDoubleRoundRobinFixtures(params: {
 
   const roundsPerLeg = n - 1;
   const totalRoundsExpected = roundsPerLeg * 2;
-  const roundDates = distributeRoundsAcrossMonth({
+  const matchesPerRound = n / 2;
+  const matchSlots = distributeMatchSlotsAcrossMonth({
     year,
     month,
     ...(startHour !== undefined ? { startHour } : {}),
     ...(endHour !== undefined ? { endHour } : {}),
+    matchesPerRound,
+    ...(timeZone ? { timeZone } : {}),
   });
 
-  if (n === 30 && roundDates.length !== 58) {
-    throw new Error(
-      `Se esperaban 58 jornadas para 30 equipos, generadas: ${String(roundDates.length)}`,
-    );
+  const roundCount = matchSlots.reduce((acc, s) => Math.max(acc, s.roundNumber), 0);
+  if (n === 30 && roundCount !== 58) {
+    throw new Error(`Se esperaban 58 jornadas para 30 equipos, generadas: ${String(roundCount)}`);
   }
+
+  const slotMap = new Map<string, ScheduledMatchSlot>(
+    matchSlots.map((slot) => [
+      `${String(slot.roundNumber)}:${String(slot.matchIndexInRound)}`,
+      slot,
+    ]),
+  );
 
   const fixed = teamIds[0];
   if (!fixed) {
@@ -180,36 +282,29 @@ export function generateDoubleRoundRobinFixtures(params: {
   }
 
   const fixtures: ScheduledFixture[] = [];
-  for (
-    let roundIdx = 0;
-    roundIdx < Math.min(totalRoundsExpected, roundDates.length);
-    roundIdx += 1
-  ) {
+  for (let roundIdx = 0; roundIdx < Math.min(totalRoundsExpected, roundCount); roundIdx += 1) {
+    const roundNumber = roundIdx + 1;
     const isSecondLeg = roundIdx >= roundsPerLeg;
     const baseRound = firstLegRounds[isSecondLeg ? roundIdx - roundsPerLeg : roundIdx];
-    const calendarDay = roundDates[roundIdx];
-    if (!baseRound || !calendarDay) {
+    if (!baseRound) {
       continue;
     }
 
-    const baseDateMs = Date.parse(calendarDay.scheduledAtIso);
-
     for (let mIdx = 0; mIdx < baseRound.length; mIdx += 1) {
       const pair = baseRound[mIdx];
-      if (!pair) {
+      const slot = slotMap.get(`${String(roundNumber)}:${String(mIdx)}`);
+      if (!pair || !slot) {
         continue;
       }
       const homeTeamId = isSecondLeg ? pair.away : pair.home;
       const awayTeamId = isSecondLeg ? pair.home : pair.away;
-      // Pequeño escalonamiento dentro de la franja horaria (sin salir de 08:00-20:00)
-      const staggeredAt = new Date(baseDateMs + mIdx * 2 * 60_000).toISOString();
 
       fixtures.push({
-        roundNumber: calendarDay.roundNumber,
+        roundNumber,
         matchIndexInRound: mIdx,
         homeTeamId,
         awayTeamId,
-        scheduledAtIso: staggeredAt,
+        scheduledAtIso: slot.scheduledAtIso,
       });
     }
   }

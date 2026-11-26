@@ -135,9 +135,9 @@ export function PlayersPage() {
         description={f(t.playersPage.description, { leagueName: activeLeague.name })}
       />
 
-      <div className="rounded-lg border border-border bg-card p-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="min-w-0 flex-1 space-y-1 text-left">
+      <div className="rounded-lg border border-border bg-card p-3.5 sm:p-5">
+        <div className="flex flex-col gap-3 sm:gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0 flex-1 space-y-0.5 text-left sm:space-y-1">
             <p className="text-xs font-semibold tracking-wider text-primary uppercase">
               {t.playersPage.quickScoutTitle}
             </p>
@@ -145,9 +145,9 @@ export function PlayersPage() {
               {t.playersPage.quickScoutDesc}
             </p>
           </div>
-          <div className="grid w-full gap-3 sm:grid-cols-[minmax(0,1.25fr)_minmax(0,1.25fr)_auto] lg:w-auto lg:max-w-[700px] lg:min-w-[600px] lg:shrink-0">
+          <div className="grid w-full grid-cols-2 gap-2 sm:grid-cols-[minmax(0,1.25fr)_minmax(0,1.25fr)_auto] sm:gap-3 lg:w-auto lg:max-w-[700px] lg:min-w-[600px] lg:shrink-0">
             <label className="flex min-w-0 flex-col gap-1 text-[11px] font-medium text-muted-foreground">
-              <span>{t.playersPage.selectFranchiseLabel}</span>
+              <span className="truncate">{t.playersPage.selectFranchiseLabel}</span>
               <select
                 aria-label={t.playersPage.selectFranchiseLabel}
                 value={effectiveScoutTeamId}
@@ -156,7 +156,7 @@ export function PlayersPage() {
                   setScoutTeamId(nextId);
                   setScoutPlayerId('');
                 }}
-                className="h-9 w-full min-w-0 rounded-md border border-border bg-surface-deep px-2.5 text-sm text-foreground"
+                className="h-9 w-full min-w-0 rounded-md border border-border bg-surface-deep px-2 text-xs text-foreground sm:px-2.5 sm:text-sm"
               >
                 {(teamsQuery.data ?? []).map((team) => (
                   <option key={team.id} value={team.id}>
@@ -167,14 +167,14 @@ export function PlayersPage() {
             </label>
 
             <label className="flex min-w-0 flex-col gap-1 text-[11px] font-medium text-muted-foreground">
-              <span>{t.playersPage.selectPlayerLabel}</span>
+              <span className="truncate">{t.playersPage.selectPlayerLabel}</span>
               <select
                 aria-label={t.playersPage.selectPlayerLabel}
                 value={effectiveScoutPlayerId}
                 onChange={(e) => {
                   setScoutPlayerId(e.target.value);
                 }}
-                className="h-9 w-full min-w-0 rounded-md border border-border bg-surface-deep px-2.5 text-sm text-foreground"
+                className="h-9 w-full min-w-0 rounded-md border border-border bg-surface-deep px-2 text-xs text-foreground sm:px-2.5 sm:text-sm"
               >
                 {(scoutRosterQuery.data?.roster ?? []).map((rosterPlayer) => (
                   <option key={rosterPlayer.id} value={rosterPlayer.id}>
@@ -184,7 +184,7 @@ export function PlayersPage() {
               </select>
             </label>
 
-            <div className="flex items-end">
+            <div className="col-span-2 flex items-end sm:col-span-1">
               <Button
                 type="button"
                 className="w-full"
@@ -203,8 +203,8 @@ export function PlayersPage() {
         </div>
       </div>
 
-      <div className="grid gap-3 rounded-lg border border-border bg-card p-4 md:grid-cols-6">
-        <div className="relative min-w-0 md:col-span-2">
+      <div className="grid grid-cols-2 gap-2 rounded-lg border border-border bg-card p-3 sm:gap-3 sm:p-4 md:grid-cols-7">
+        <div className="relative col-span-2 min-w-0">
           <Search className="pointer-events-none absolute top-2.5 left-3 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder={t.playersPage.searchPlaceholder}
@@ -224,7 +224,7 @@ export function PlayersPage() {
             setTeamFilterId(e.target.value);
             setOffset(0);
           }}
-          className="h-9 w-full min-w-0 rounded-md border border-border bg-surface-deep px-2.5 text-sm text-foreground"
+          className="h-9 w-full min-w-0 rounded-md border border-border bg-surface-deep px-2 text-xs text-foreground sm:px-2.5 sm:text-sm"
         >
           <option value="ALL">{t.playersPage.allFranchises}</option>
           {(teamsQuery.data ?? []).map((team) => (
@@ -241,7 +241,7 @@ export function PlayersPage() {
             setPosition(e.target.value as 'ALL' | Position);
             setOffset(0);
           }}
-          className="h-9 w-full min-w-0 rounded-md border border-border bg-surface-deep px-2.5 text-sm text-foreground"
+          className="h-9 w-full min-w-0 rounded-md border border-border bg-surface-deep px-2 text-xs text-foreground sm:px-2.5 sm:text-sm"
         >
           {POSITIONS.map((pos) => (
             <option key={pos} value={pos}>
@@ -257,7 +257,7 @@ export function PlayersPage() {
             setRole(e.target.value as 'ALL' | PlayerRole);
             setOffset(0);
           }}
-          className="h-9 w-full min-w-0 rounded-md border border-border bg-surface-deep px-2.5 text-sm text-foreground"
+          className="h-9 w-full min-w-0 rounded-md border border-border bg-surface-deep px-2 text-xs text-foreground sm:px-2.5 sm:text-sm"
         >
           {ROLES.map((r) => (
             <option key={r} value={r}>
@@ -266,38 +266,36 @@ export function PlayersPage() {
           ))}
         </select>
 
-        <div className="flex min-w-0 flex-col gap-2 sm:flex-row">
-          <select
-            aria-label={t.playersPage.filterStatusAria}
-            value={status}
-            onChange={(e) => {
-              setStatus(e.target.value as 'ALL' | AvailabilityStatus);
-              setOffset(0);
-            }}
-            className="h-9 w-full min-w-0 flex-1 rounded-md border border-border bg-surface-deep px-2 text-sm text-foreground"
-          >
-            {STATUSES.map((st) => (
-              <option key={st} value={st}>
-                {st === 'ALL' ? t.playersPage.allStatuses : t.availability[st]}
-              </option>
-            ))}
-          </select>
+        <select
+          aria-label={t.playersPage.filterStatusAria}
+          value={status}
+          onChange={(e) => {
+            setStatus(e.target.value as 'ALL' | AvailabilityStatus);
+            setOffset(0);
+          }}
+          className="h-9 w-full min-w-0 rounded-md border border-border bg-surface-deep px-2 text-xs text-foreground sm:px-2.5 sm:text-sm"
+        >
+          {STATUSES.map((st) => (
+            <option key={st} value={st}>
+              {st === 'ALL' ? t.playersPage.allStatuses : t.availability[st]}
+            </option>
+          ))}
+        </select>
 
-          <select
-            aria-label={t.playersPage.sortByAria}
-            value={defaultSortBy}
-            onChange={(e) => {
-              setDefaultSortBy(e.target.value as 'fp' | 'price' | 'overall');
-              setTableSort(null);
-              setOffset(0);
-            }}
-            className="h-9 w-full min-w-0 rounded-md border border-border bg-surface-deep px-2 text-sm text-foreground sm:flex-1"
-          >
-            <option value="fp">{t.playersPage.sortByFp}</option>
-            <option value="price">{t.playersPage.sortByPrice}</option>
-            <option value="overall">{t.playersPage.sortByOvr}</option>
-          </select>
-        </div>
+        <select
+          aria-label={t.playersPage.sortByAria}
+          value={defaultSortBy}
+          onChange={(e) => {
+            setDefaultSortBy(e.target.value as 'fp' | 'price' | 'overall');
+            setTableSort(null);
+            setOffset(0);
+          }}
+          className="col-span-2 h-9 w-full min-w-0 rounded-md border border-border bg-surface-deep px-2 text-xs text-foreground sm:px-2.5 sm:text-sm md:col-span-1"
+        >
+          <option value="fp">{t.playersPage.sortByFp}</option>
+          <option value="price">{t.playersPage.sortByPrice}</option>
+          <option value="overall">{t.playersPage.sortByOvr}</option>
+        </select>
       </div>
 
       {playersQuery.isError ? (

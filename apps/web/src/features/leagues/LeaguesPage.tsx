@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/Input';
 import { useToast } from '@/components/ui/toast-context';
 import { useDream5State } from '@/hooks/use-dream5-state';
 import { useI18n } from '@/hooks/use-i18n';
+import { formatStatNumber } from '@/lib/formatters';
 import { translateInvitationStatus, translateLeagueRole, translateMarketMode } from '@/lib/i18n';
 import { invitationsApi, leaguesApi, seasonsApi, usersApi } from '@/services/dream5-api';
 
@@ -366,13 +367,13 @@ export function LeaguesPage() {
                 }
               />
             ) : (
-              <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 {(activeLeagueDetailQuery.data?.members ?? []).map((member) => (
                   <div
                     key={member.userId}
-                    className="flex min-w-0 items-center justify-between gap-2 rounded-md border border-border bg-surface-deep/75 px-3 py-2.5 text-sm"
+                    className="flex min-w-0 items-center justify-between gap-2 rounded-md border border-border bg-surface-deep/75 px-2.5 py-2 text-sm sm:px-3 sm:py-2.5"
                   >
-                    <div className="flex min-w-0 items-center gap-2.5">
+                    <div className="flex min-w-0 items-center gap-2 sm:gap-2.5">
                       <UserAvatar
                         initials={member.initials}
                         username={member.username}
@@ -380,9 +381,11 @@ export function LeaguesPage() {
                         size="sm"
                       />
                       <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-semibold text-foreground">{member.username}</span>
-                          <span className="text-xs text-muted-foreground">{member.tag}</span>
+                        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                          <span className="truncate font-semibold text-foreground">
+                            {member.username}
+                          </span>
+                          <span className="text-[11px] text-muted-foreground">{member.tag}</span>
                           <Badge variant={member.role === 'PRESIDENT' ? 'primary' : 'outline'}>
                             {member.role === 'PRESIDENT' ? <Crown className="h-3 w-3" /> : null}
                             {translateLeagueRole(member.role, language)}
@@ -390,7 +393,8 @@ export function LeaguesPage() {
                         </div>
                         <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
                           <TeamLogo code={member.teamCode} name={member.teamName} size="sm" />
-                          <span className="truncate">
+                          <span className="truncate sm:hidden">{member.teamCode}</span>
+                          <span className="hidden truncate sm:inline">
                             {member.teamName} ({member.teamCode})
                           </span>
                         </p>
@@ -399,7 +403,7 @@ export function LeaguesPage() {
                     <div className="shrink-0 text-right tabular-nums">
                       <p className="font-display font-bold text-primary">#{member.rank}</p>
                       <p className="text-xs text-muted-foreground">
-                        {member.fantasyPoints.toFixed(1)} {t.common.dp}
+                        {formatStatNumber(member.fantasyPoints)} {t.common.dp}
                       </p>
                     </div>
                   </div>

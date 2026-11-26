@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { useDream5State } from '@/hooks/use-dream5-state';
 import { useI18n } from '@/hooks/use-i18n';
+import { formatStatNumber } from '@/lib/formatters';
 import { rankingsApi } from '@/services/dream5-api';
 import { mapStandingDtoToUi } from '@/services/mappers';
 
@@ -82,10 +83,10 @@ export function RankingsPage() {
                         {t.common.roundLabel} {round.roundNumber}
                       </Badge>
                       <span className="font-display text-base font-bold text-primary tabular-nums">
-                        {round.totalFp.toFixed(1)} {t.common.dp}
+                        {formatStatNumber(round.totalFp)} {t.common.dp}
                       </span>
                     </div>
-                    <div className="grid grid-cols-2 gap-1.5 text-center sm:grid-cols-5 sm:gap-2">
+                    <div className="grid grid-cols-5 gap-1 text-center sm:gap-2">
                       {(['PG', 'SG', 'SF', 'PF', 'C'] as const).map((pos) => {
                         const slot = round.breakdownJson[pos];
                         const playerId = slot?.playerId ?? null;
@@ -108,8 +109,8 @@ export function RankingsPage() {
                             }}
                             className={
                               playerId
-                                ? 'min-w-0 cursor-pointer rounded border border-border/70 bg-card/70 px-1 py-1.5 transition-colors hover:border-primary/45'
-                                : 'min-w-0 rounded border border-border/70 bg-card/70 px-1 py-1.5'
+                                ? 'min-w-0 cursor-pointer rounded border border-border/70 bg-card/70 px-1 py-1 transition-colors hover:border-primary/45 sm:py-1.5'
+                                : 'min-w-0 rounded border border-border/70 bg-card/70 px-1 py-1 sm:py-1.5'
                             }
                           >
                             <p className="text-[10px] font-bold text-primary">{pos}</p>
@@ -117,7 +118,7 @@ export function RankingsPage() {
                               {slot?.playerName?.split(' ').at(-1) ?? '-'}
                             </p>
                             <p className="font-semibold text-foreground tabular-nums">
-                              {(slot?.fp ?? 0).toFixed(1)}
+                              {formatStatNumber(slot?.fp ?? 0)}
                             </p>
                           </div>
                         );

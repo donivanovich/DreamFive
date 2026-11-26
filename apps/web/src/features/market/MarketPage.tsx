@@ -92,7 +92,7 @@ export function MarketPage() {
         <LoadingSkeletonCard />
       ) : (
         <>
-          <div className="grid gap-6 lg:grid-cols-2">
+          <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
             <MarketMoversCard title={t.marketPage.risersTitle} direction="up" players={gainers} />
             <MarketMoversCard
               title={t.marketPage.fallersTitle}

@@ -114,22 +114,22 @@ export function AuthPage() {
   };
 
   return (
-    <div className="mx-auto grid max-w-5xl items-center gap-8 lg:grid-cols-[1.15fr_1fr]">
-      <div className="min-w-0 space-y-6">
+    <div className="mx-auto grid max-w-5xl items-center gap-5 lg:grid-cols-[1.15fr_1fr] lg:gap-8">
+      <div className="min-w-0 space-y-3.5 sm:space-y-6">
         <div className="inline-flex items-center gap-2 rounded-full border border-primary/35 bg-primary/10 px-3 py-1 text-xs font-semibold tracking-wider text-primary uppercase">
           <Sparkles className="h-3.5 w-3.5" />
           DREAM5 · Basket Management Simulator
         </div>
 
-        <h1 className="font-display text-4xl font-bold tracking-wide text-foreground uppercase md:text-5xl">
+        <h1 className="font-display text-2xl font-bold tracking-wide text-foreground uppercase sm:text-4xl md:text-5xl">
           {t.auth.heroHeadline}
         </h1>
 
-        <p className="text-sm leading-relaxed text-muted-foreground md:text-base">
+        <p className="text-xs leading-relaxed text-muted-foreground sm:text-sm md:text-base">
           {t.auth.heroDesc}
         </p>
 
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3">
           {[
             { icon: Trophy, title: t.auth.feature1Title, desc: t.auth.feature1Desc },
             { icon: ShieldCheck, title: t.auth.feature2Title, desc: t.auth.feature2Desc },
@@ -139,14 +139,16 @@ export function AuthPage() {
             const Icon = item.icon;
             return (
               <Card key={item.title} className="bg-card/75">
-                <CardContent className="space-y-1.5 pt-4">
-                  <div className="flex items-center gap-2 text-primary">
-                    <Icon className="h-4 w-4" />
-                    <p className="font-display text-sm font-bold tracking-wider uppercase">
+                <CardContent className="space-y-1 pt-3 sm:space-y-1.5 sm:pt-4">
+                  <div className="flex items-center gap-1.5 text-primary sm:gap-2">
+                    <Icon className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
+                    <p className="font-display text-xs font-bold tracking-wider uppercase sm:text-sm">
                       {item.title}
                     </p>
                   </div>
-                  <p className="text-xs text-muted-foreground">{item.desc}</p>
+                  <p className="text-[11px] leading-snug text-muted-foreground sm:text-xs">
+                    {item.desc}
+                  </p>
                 </CardContent>
               </Card>
             );
@@ -290,6 +292,7 @@ export function AuthPage() {
                     </label>
                     <Input
                       id="auth-username"
+                      autoComplete="username"
                       placeholder="AlexCoach"
                       value={username}
                       onChange={(event) => {
@@ -312,6 +315,7 @@ export function AuthPage() {
                   <Input
                     id="auth-email"
                     type="email"
+                    autoComplete="email"
                     placeholder="ivan.k@dream5.local"
                     value={email}
                     onChange={(event) => {
@@ -330,6 +334,7 @@ export function AuthPage() {
                   </label>
                   <PasswordInput
                     id="auth-password"
+                    autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
                     placeholder="••••••••"
                     value={password}
                     onChange={(event) => {

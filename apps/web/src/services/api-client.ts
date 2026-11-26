@@ -1,11 +1,42 @@
 const STORAGE_TOKEN_KEY = 'dream5_access_token';
 
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1']);
+
+/**
+ * Alinea el host loopback de la API (`localhost` <-> `127.0.0.1`) con el del navegador
+ * para evitar discrepancias CORS y de cookies `SameSite=Lax` al abrir la web por IP local.
+ */
+export function resolveLoopbackApiUrl(configuredBaseUrl: string, currentHostname?: string): string {
+  const normalized = configuredBaseUrl.trim().replace(/\/+$/, '');
+  if (!currentHostname) {
+    return normalized;
+  }
+
+  try {
+    const parsed = new URL(normalized);
+    if (
+      LOOPBACK_HOSTS.has(parsed.hostname) &&
+      LOOPBACK_HOSTS.has(currentHostname) &&
+      parsed.hostname !== currentHostname
+    ) {
+      parsed.hostname = currentHostname;
+      return parsed.toString().replace(/\/+$/, '');
+    }
+  } catch {
+    // Mantiene la URL original si no es parseable.
+  }
+
+  return normalized;
+}
+
 export function getApiBaseUrl(): string {
   const configured = import.meta.env.VITE_API_URL;
-  if (configured && configured.trim().length > 0) {
-    return configured.trim().replace(/\/+$/, '');
-  }
-  return 'http://localhost:3101';
+  const fallback =
+    configured && configured.trim().length > 0
+      ? configured.trim().replace(/\/+$/, '')
+      : 'http://localhost:3101';
+  const currentHostname = typeof window !== 'undefined' ? window.location.hostname : undefined;
+  return resolveLoopbackApiUrl(fallback, currentHostname);
 }
 
 export function resolveApiAssetUrl(assetPath: string | null | undefined): string | null {

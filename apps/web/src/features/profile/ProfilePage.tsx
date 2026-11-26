@@ -27,7 +27,7 @@ import { PasswordInput } from '@/components/ui/PasswordInput';
 import { useToast } from '@/components/ui/toast-context';
 import { useDream5State } from '@/hooks/use-dream5-state';
 import { useI18n } from '@/hooks/use-i18n';
-import { formatMillions } from '@/lib/formatters';
+import { formatLocaleDecimal, formatMillions } from '@/lib/formatters';
 import { translateLeagueRole } from '@/lib/i18n';
 import { usersApi } from '@/services/dream5-api';
 
@@ -285,6 +285,7 @@ export function ProfilePage() {
                   <form onSubmit={handleNameSubmit} className="flex items-center gap-1.5">
                     <Input
                       id="profile-inline-username"
+                      autoComplete="username"
                       value={username}
                       onChange={(event) => {
                         setUsername(event.target.value);
@@ -425,6 +426,7 @@ export function ProfilePage() {
                       <Input
                         id="email-change-code"
                         inputMode="numeric"
+                        autoComplete="one-time-code"
                         maxLength={6}
                         placeholder="123456"
                         value={emailChangeCode}
@@ -462,6 +464,7 @@ export function ProfilePage() {
                   <Input
                     id="profile-new-email"
                     type="email"
+                    autoComplete="email"
                     placeholder="new@dream5.local"
                     value={newEmail}
                     onChange={(event) => {
@@ -479,6 +482,7 @@ export function ProfilePage() {
                   </label>
                   <PasswordInput
                     id="profile-email-password"
+                    autoComplete="current-password"
                     placeholder="••••••••"
                     value={emailChangePassword}
                     onChange={(event) => {
@@ -558,38 +562,39 @@ export function ProfilePage() {
               {t.profile.noLeaguesJoined}
             </div>
           ) : (
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid gap-2.5 sm:gap-3 md:grid-cols-2">
               {leagues.map((league) => (
                 <div
                   key={league.id}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-surface-deep/75 p-3.5 text-sm"
+                  className="flex items-center justify-between gap-2.5 rounded-lg border border-border bg-surface-deep/75 p-2.5 text-sm sm:gap-3 sm:p-3.5"
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
                     <TeamLogo code={league.userTeamCode} name={league.userTeamName} size="md" />
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-foreground">{league.name}</span>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                        <span className="truncate font-semibold text-foreground">
+                          {league.name}
+                        </span>
                         <Badge variant={league.userRole === 'PRESIDENT' ? 'primary' : 'outline'}>
                           {league.userRole === 'PRESIDENT' ? <Crown className="h-3 w-3" /> : null}
                           {translateLeagueRole(league.userRole, language)}
                         </Badge>
                       </div>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {league.userTeamName} ({league.userTeamCode}) · {t.common.roundLabel}{' '}
-                        {league.currentRoundNumber}/{league.totalRounds}
+                      <p className="mt-0.5 text-xs text-muted-foreground sm:mt-1">
+                        <span className="sm:hidden">{league.userTeamCode}</span>
+                        <span className="hidden sm:inline">
+                          {league.userTeamName} ({league.userTeamCode})
+                        </span>{' '}
+                        · {t.common.roundLabel} {league.currentRoundNumber}/{league.totalRounds}
                       </p>
                     </div>
                   </div>
-                  <div className="text-right text-xs tabular-nums">
+                  <div className="shrink-0 text-right text-xs tabular-nums">
                     <p className="font-display text-base font-bold text-primary">
                       #{league.userRank}
                     </p>
                     <p className="text-muted-foreground">
-                      {league.userTotalFp.toLocaleString(locale, {
-                        minimumFractionDigits: 1,
-                        maximumFractionDigits: 1,
-                      })}{' '}
-                      {t.common.dp}
+                      {formatLocaleDecimal(league.userTotalFp, locale)} {t.common.dp}
                     </p>
                     <p className="text-muted-foreground">
                       {formatMillions(league.userBudgetMillions)}

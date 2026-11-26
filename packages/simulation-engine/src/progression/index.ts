@@ -22,12 +22,12 @@ export interface ProgressionOutput {
 }
 
 const ROLE_EXPECTED_FP: Record<EnginePlayerRole, number> = {
-  SUPERSTAR: 38,
-  STAR: 31,
-  STARTER: 23,
-  ROTATION: 16,
-  ROOKIE: 13,
-  BENCH: 9,
+  SUPERSTAR: 11.5,
+  STAR: 8.0,
+  STARTER: 5.0,
+  ROTATION: 2.8,
+  ROOKIE: 2.0,
+  BENCH: 0.8,
 };
 
 function clampRating(value: number): number {
@@ -57,7 +57,7 @@ export function evaluatePlayerProgression(params: {
   const perfDelta = input.avgFantasyPoints - expected;
   const ageDrift = input.age <= 23 ? 0.8 : input.age >= 32 ? -0.7 : 0.1;
   const noise = rng.nextRange(-0.9, 0.9);
-  const rawShift = perfDelta * 0.08 + ageDrift + noise;
+  const rawShift = perfDelta * 0.22 + ageDrift + noise;
   const overallDelta = Math.max(-2, Math.min(2, Math.round(rawShift)));
   const newOverallRating = clampRating(input.overallRating + overallDelta);
 

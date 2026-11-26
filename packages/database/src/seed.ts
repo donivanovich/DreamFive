@@ -9,6 +9,8 @@ import {
   hashPassword,
   instantiateLeague,
   joinLeagueWithRandomTeamInTx,
+  recalculateAndUpgradeExistingLeagues,
+  rescheduleUpcomingLeagueMatches,
   simulateRoundForLeague,
 } from './index.js';
 
@@ -151,6 +153,25 @@ async function runSeed(): Promise<void> {
         leagueId: createdLeague.leagueId,
         roundNumber: 1,
       });
+    }
+
+    const upgraded = await recalculateAndUpgradeExistingLeagues(prisma);
+    if (
+      upgraded.recalculatedStatsCount > 0 ||
+      upgraded.scaledMarketLeaguesCount > 0 ||
+      upgraded.unlockedPlayersCount > 0 ||
+      upgraded.clearedRejectedCooldownsCount > 0
+    ) {
+      process.stdout.write(
+        `[seed] Actualización de ligas completada (stats recalculadas: ${String(upgraded.recalculatedStatsCount)}, mercados x3: ${String(upgraded.scaledMarketLeaguesCount)}, desbloqueados: ${String(upgraded.unlockedPlayersCount)}, rechazos limpiados: ${String(upgraded.clearedRejectedCooldownsCount)}).\n`,
+      );
+    }
+
+    const rescheduled = await rescheduleUpcomingLeagueMatches(prisma);
+    if (rescheduled.updatedMatchesCount > 0) {
+      process.stdout.write(
+        `[seed] Horarios futuros redistribuidos equitativamente (${String(rescheduled.updatedMatchesCount)} partidos entre 08:00 y 20:00).\n`,
+      );
     }
 
     process.stdout.write('[seed] Seed completado con éxito.\n');

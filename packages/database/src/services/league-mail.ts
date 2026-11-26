@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { LeagueMailCategory } from '@dream5/shared';
+import { formatCleanDecimal, type LeagueMailCategory } from '@dream5/shared';
 import type { Prisma, PrismaClient } from '../generated/prisma/client.js';
 
 export type LeagueMailDbClient = Prisma.TransactionClient | PrismaClient;
@@ -112,7 +112,7 @@ export function buildMatchResultMailInput(params: {
     roundNumber: params.roundNumber,
     category: 'MATCH_RESULT',
     subject: `Round ${String(params.roundNumber)}: ${outcomeLabel} ${venueLabel} ${params.opponentTeamName} (${String(params.teamScore)}-${String(params.opponentScore)}${otSuffix})`,
-    body: `Your club finished Round ${String(params.roundNumber)} ${venueLabel} ${params.opponentTeamName} with a score of ${String(params.teamScore)}-${String(params.opponentScore)}${otSuffix} and generated ${params.teamDreamPoints.toFixed(1)} Dream Points.${rewardLine}`,
+    body: `Your club finished Round ${String(params.roundNumber)} ${venueLabel} ${params.opponentTeamName} with a score of ${String(params.teamScore)}-${String(params.opponentScore)}${otSuffix} and generated ${formatCleanDecimal(params.teamDreamPoints)} Dream Points.${rewardLine}`,
     metadata: {
       roundNumber: params.roundNumber,
       opponentTeamId: params.opponentTeamId,
@@ -153,7 +153,7 @@ export function buildRetirementReplacementMailInput(params: {
     roundNumber: null,
     category: 'RETIREMENT_REPLACEMENT',
     subject: `Retirement & Rookie Sign-Off (${params.teamName}): ${params.retiredPlayerName} -> ${params.rookiePlayerName}`,
-    body: `${params.retiredPlayerName} (${params.retiredPosition}, age ${String(params.retiredAge)}, OVR ${String(params.retiredOverall)}) has officially retired after last season. Your franchise promoted rookie ${params.rookiePlayerName} (${params.rookiePosition}, age ${String(params.rookieAge)}, OVR ${String(params.rookieOverall)}, $${params.rookiePriceMillions.toFixed(1)}M) to keep your 18-player roster complete for Season ${String(params.seasonNumber)}.`,
+    body: `${params.retiredPlayerName} (${params.retiredPosition}, age ${String(params.retiredAge)}, OVR ${String(params.retiredOverall)}) has officially retired after last season. Your franchise promoted rookie ${params.rookiePlayerName} (${params.rookiePosition}, age ${String(params.rookieAge)}, OVR ${String(params.rookieOverall)}, $${formatCleanDecimal(params.rookiePriceMillions)}M) to keep your 18-player roster complete for Season ${String(params.seasonNumber)}.`,
     metadata: {
       seasonNumber: params.seasonNumber,
       teamName: params.teamName,

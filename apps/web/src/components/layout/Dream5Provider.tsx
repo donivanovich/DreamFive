@@ -113,7 +113,7 @@ export function Dream5StateProvider({ children }: { readonly children: ReactNode
     }
   }, []);
 
-  useLeagueRealtime(user?.id, activeLeague?.id);
+  const realtimeConnected = useLeagueRealtime(user?.id, activeLeague?.id);
 
   const refreshSession = useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
@@ -220,6 +220,7 @@ export function Dream5StateProvider({ children }: { readonly children: ReactNode
       setActiveLeagueId,
       pendingInvitationsCount: pendingInvitationsQuery.data?.length ?? 0,
       unreadMailCount: mailBadgeQuery.data?.unreadCount ?? 0,
+      realtimeConnected,
       preferences,
       appearance,
       updatePreference,
@@ -238,6 +239,7 @@ export function Dream5StateProvider({ children }: { readonly children: ReactNode
       setActiveLeagueId,
       pendingInvitationsQuery.data?.length,
       mailBadgeQuery.data?.unreadCount,
+      realtimeConnected,
       preferences,
       appearance,
       updatePreference,

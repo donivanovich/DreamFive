@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
 import { useI18n } from '@/hooks/use-i18n';
+import { formatLocaleDecimal, formatStatNumber } from '@/lib/formatters';
 import { translateLeagueRole, translateLeagueStatus } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 
@@ -28,10 +29,10 @@ export function LeagueCard({ league, isActive, onSelect, onManage }: LeagueCardP
         isActive ? 'border-primary/60' : 'hover:border-border/80',
       )}
     >
-      <CardContent className="space-y-4 pt-5">
+      <CardContent className="space-y-3 pt-3.5 sm:space-y-4 sm:pt-5">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
               <Badge variant={league.status === 'ACTIVE' ? 'success' : 'outline'}>
                 {statusLabel}
               </Badge>
@@ -40,12 +41,12 @@ export function LeagueCard({ league, isActive, onSelect, onManage }: LeagueCardP
                 {roleLabel}
               </Badge>
             </div>
-            <h3 className="mt-2.5 truncate font-display text-xl font-bold tracking-wider text-foreground uppercase">
+            <h3 className="mt-2 truncate font-display text-lg font-bold tracking-wider text-foreground uppercase sm:mt-2.5 sm:text-xl">
               {league.name}
             </h3>
             <p className="text-xs text-muted-foreground">
-              {league.seasonName} · {t.common.roundLabel} {league.currentRoundNumber}/
-              {league.totalRounds}
+              {league.seasonName} · {t.common.roundShort}
+              {league.currentRoundNumber}/{league.totalRounds}
             </p>
           </div>
 
@@ -53,20 +54,21 @@ export function LeagueCard({ league, isActive, onSelect, onManage }: LeagueCardP
             <span className="text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
               {t.leagues.rankHeader}
             </span>
-            <p className="font-display text-2xl font-bold text-primary tabular-nums">
+            <p className="font-display text-xl font-bold text-primary tabular-nums sm:text-2xl">
               #{league.userRank}
             </p>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2.5 rounded-md border border-border bg-surface-deep/80 p-3 text-xs">
+        <div className="grid grid-cols-2 gap-2 rounded-md border border-border bg-surface-deep/80 p-2.5 text-xs sm:gap-2.5 sm:p-3">
           <div className="min-w-0">
             <p className="text-[10px] font-semibold text-muted-foreground uppercase">
               {t.common.youTeam}
             </p>
             <p className="mt-0.5 flex min-w-0 items-center gap-1.5 font-semibold text-foreground">
               <TeamLogo code={league.userTeamCode} name={league.userTeamName} size="sm" />
-              <span className="truncate">
+              <span className="truncate sm:hidden">{league.userTeamCode}</span>
+              <span className="hidden truncate sm:inline">
                 {league.userTeamName} ({league.userTeamCode})
               </span>
             </p>
@@ -85,7 +87,7 @@ export function LeagueCard({ league, isActive, onSelect, onManage }: LeagueCardP
               {t.common.dpTotal}
             </p>
             <p className="mt-0.5 font-semibold text-foreground tabular-nums">
-              {league.userTotalFp.toLocaleString(locale)}
+              {formatLocaleDecimal(league.userTotalFp, locale)}
             </p>
           </div>
           <div>
@@ -93,7 +95,7 @@ export function LeagueCard({ league, isActive, onSelect, onManage }: LeagueCardP
               {t.leagues.lastRoundHeader}
             </p>
             <p className="mt-0.5 font-semibold text-primary tabular-nums">
-              {league.userLastRoundFp.toFixed(1)} {t.common.dp}
+              {formatStatNumber(league.userLastRoundFp)} {t.common.dp}
             </p>
           </div>
         </div>

@@ -9,13 +9,18 @@ import {
   createPrismaClient,
   ensureCatalogSeeded,
   executeAcceptedTransferInTx,
+  expirePendingTransferOffers,
+  findActiveTransferBlocks,
   hashPassword,
   instantiateLeague,
   joinLeagueWithRandomTeamInTx,
   pickDefaultLineupForTeam,
   type PrismaClient,
+  recalculateAndUpgradeExistingLeagues,
   repriceLeagueMarket,
   simulateRoundForLeague,
+  simulateScheduledMatchAndProgress,
+  syncLeagueClockToRealTime,
   TransferValidationError,
 } from './index.js';
 
@@ -154,13 +159,15 @@ describeIfDb(
       });
       expect(autoMarketCount).toBeGreaterThan(0);
 
-      // Verificar premio por victoria (FP jornada del ganador x 1.000 créditos) sin duplicar
+      // Verificar premio por victoria (FP jornada del ganador x 100.000 créditos) y marcador NBA realista
       const sampleMatch = await prisma.match.findFirst({
         where: { leagueId: leagueA.leagueId, roundNumber: 1, status: 'FINAL' },
       });
       if (!sampleMatch) {
         throw new Error('No se encontró ningún partido finalizado en la jornada 1.');
       }
+      expect(sampleMatch.homeScore ?? 0).toBeLessThan(175);
+      expect(sampleMatch.awayScore ?? 0).toBeLessThan(175);
       const winnerTeamId =
         (sampleMatch.homeScore ?? 0) >= (sampleMatch.awayScore ?? 0)
           ? sampleMatch.homeTeamId
@@ -174,11 +181,12 @@ describeIfDb(
         prisma.leagueTeam.findUnique({ where: { id: winnerTeamId } }),
         prisma.leagueTeam.findUnique({ where: { id: loserTeamId } }),
       ]);
-      const expectedWinMillions = Math.round(((winnerScore?.totalFp ?? 0) * 1000) / 100) / 10_000;
+      const expectedWinMillions =
+        Math.round(Math.max(0, winnerScore?.totalFp ?? 0) * 100_000) / 1_000_000;
       expect(sampleMatch.winRewardPaid).toBe(true);
       expect(sampleMatch.winRewardMillions ?? 0).toBeCloseTo(expectedWinMillions, 4);
-      expect(winnerTeam?.budgetMillions ?? 0).toBeCloseTo(25 + expectedWinMillions, 4);
-      expect(loserTeam?.budgetMillions ?? 0).toBeCloseTo(25, 4);
+      expect(winnerTeam?.budgetMillions ?? 0).toBeCloseTo(75 + expectedWinMillions, 2);
+      expect(loserTeam?.budgetMillions ?? 0).toBeCloseTo(75, 2);
 
       await repriceLeagueMarket(prisma, {
         leagueId: leagueA.leagueId,
@@ -672,6 +680,271 @@ describeIfDb(
       expect(season2RetirementMails).toBeGreaterThanOrEqual(1);
       expect(preservedTransfers).toBeGreaterThanOrEqual(1);
       expect(season2Matches).toBe(58 * 15);
+    }, 60_000);
+
+    it('simula partidos individuales con bloqueo por liga sin deadlocks, cierra jornada al 15º partido y caduca ofertas vencidas', async () => {
+      const pres = await createTestUser('strict247');
+      const league = await instantiateLeague(prisma, {
+        name: `Strict 24x7 ${String(Date.now())}`,
+        presidentUserId: pres.id,
+        simulationSeed: `strict247-${String(Date.now())}`,
+      });
+      createdLeagueIds.push(league.leagueId);
+
+      const round1Matches = await prisma.match.findMany({
+        where: { leagueId: league.leagueId, seasonId: league.seasonId, roundNumber: 1 },
+        orderBy: { scheduledAt: 'asc' },
+      });
+      expect(round1Matches).toHaveLength(15);
+
+      const firstMatch = round1Matches[0];
+      const secondMatch = round1Matches[1];
+      const lastMatch = round1Matches[14];
+      if (!firstMatch || !secondMatch || !lastMatch) {
+        throw new Error('Se esperaban 15 partidos en la jornada 1.');
+      }
+
+      // Simulación del primer partido + recálculo concurrente de mercado en la misma liga sin deadlock
+      const [firstOutcome, repriceOutcome] = await Promise.all([
+        simulateScheduledMatchAndProgress(prisma, {
+          leagueId: league.leagueId,
+          matchId: firstMatch.id,
+        }),
+        repriceLeagueMarket(prisma, {
+          leagueId: league.leagueId,
+          reason: 'Concurrencia 24/7',
+        }),
+      ]);
+      expect(firstOutcome.alreadyCompleted).toBe(false);
+      expect(firstOutcome.roundCompleted).toBe(false);
+      expect(typeof repriceOutcome.updatedPlayersCount).toBe('number');
+
+      // Completamos los 13 partidos intermedios y verificamos que el último cierra la jornada
+      for (const m of round1Matches.slice(1, 14)) {
+        const res = await simulateScheduledMatchAndProgress(prisma, {
+          leagueId: league.leagueId,
+          matchId: m.id,
+        });
+        expect(res.roundCompleted).toBe(false);
+      }
+
+      const closingOutcome = await simulateScheduledMatchAndProgress(prisma, {
+        leagueId: league.leagueId,
+        matchId: lastMatch.id,
+      });
+      expect(closingOutcome.roundCompleted).toBe(true);
+      expect(closingOutcome.seasonCompleted).toBe(false);
+
+      const [updatedSeason, r1Lineup, r2Lineup] = await Promise.all([
+        prisma.season.findUniqueOrThrow({ where: { id: league.seasonId } }),
+        prisma.lineup.findUniqueOrThrow({
+          where: {
+            leagueId_seasonId_leagueTeamId_roundNumber: {
+              leagueId: league.leagueId,
+              seasonId: league.seasonId,
+              leagueTeamId: league.assignedTeamId,
+              roundNumber: 1,
+            },
+          },
+        }),
+        prisma.lineup.findUnique({
+          where: {
+            leagueId_seasonId_leagueTeamId_roundNumber: {
+              leagueId: league.leagueId,
+              seasonId: league.seasonId,
+              leagueTeamId: league.assignedTeamId,
+              roundNumber: 2,
+            },
+          },
+        }),
+      ]);
+      expect(updatedSeason.currentRoundNumber).toBe(1);
+      expect(r1Lineup.isLocked).toBe(true);
+      expect(r2Lineup).not.toBeNull();
+      expect(r2Lineup?.isLocked).toBe(false);
+
+      // Verificamos caducidad automática de ofertas pendientes vencidas
+      const cpuTeam = await prisma.leagueTeam.findFirstOrThrow({
+        where: { leagueId: league.leagueId, isCpuControlled: true },
+      });
+      const expiredOffer = await prisma.transferOffer.create({
+        data: {
+          leagueId: league.leagueId,
+          proposingTeamId: cpuTeam.id,
+          receivingTeamId: league.assignedTeamId,
+          offeredPlayerIds: [],
+          requestedPlayerIds: [],
+          cashOfferedMillions: 1,
+          cashRequestedMillions: 0,
+          status: 'PENDING',
+          expiresAt: new Date(Date.now() - 60_000),
+        },
+      });
+      const expiryResult = await expirePendingTransferOffers(prisma, {
+        leagueId: league.leagueId,
+      });
+      expect(expiryResult.expiredCount).toBe(1);
+      const reloadedOffer = await prisma.transferOffer.findUniqueOrThrow({
+        where: { id: expiredOffer.id },
+      });
+      expect(reloadedOffer.status).toBe('EXPIRED');
+    }, 60_000);
+
+    it('desbloquea bloqueos incoherentes al sincronizar reloj y actualiza ligas heredadas x3 y Dream Points NBA de forma idempotente', async () => {
+      const pres = await createTestUser('upgrade_lock');
+      const now = new Date();
+      const league = await instantiateLeague(prisma, {
+        name: 'Liga Legacy & Clock Upgrade Test',
+        presidentUserId: pres.id,
+        simulationSeed: 'upgrade-lock-seed',
+        calendarYear: now.getFullYear(),
+        calendarMonth: now.getMonth() + 1,
+      });
+      createdLeagueIds.push(league.leagueId);
+
+      await simulateRoundForLeague(prisma, { leagueId: league.leagueId, roundNumber: 1 });
+
+      const samplePlayer = await prisma.playerInstance.findFirstOrThrow({
+        where: { leagueId: league.leagueId, currentTeamId: league.assignedTeamId },
+      });
+      const initialPrice = samplePlayer.priceMillions;
+      const sampleStat = await prisma.playerMatchStat.findFirstOrThrow({
+        where: { leagueId: league.leagueId, playerInstanceId: samplePlayer.id },
+      });
+      const nbaExpectedFp = sampleStat.fantasyPoints;
+
+      const rivalTeam = await prisma.leagueTeam.findFirstOrThrow({
+        where: { leagueId: league.leagueId, id: { not: league.assignedTeamId } },
+      });
+
+      // 1) Simular anomalías tras avanzar/revertir temporada + economía legacy
+      await prisma.playerInstance.update({
+        where: { id: samplePlayer.id },
+        data: {
+          tradeLockTeamId: league.assignedTeamId,
+          tradeLockUntilTeamMatches: 82,
+          priceMillions: 10,
+          priceDeltaMillions: 1.2,
+        },
+      });
+      await prisma.transferOffer.create({
+        data: {
+          leagueId: league.leagueId,
+          proposingTeamId: league.assignedTeamId,
+          receivingTeamId: rivalTeam.id,
+          offeredPlayerIds: [samplePlayer.id],
+          requestedPlayerIds: [],
+          cashOfferedMillions: 0,
+          cashRequestedMillions: 0,
+          status: 'REJECTED',
+          rejectedAtTeamMatches: 78,
+          expiresAt: new Date(Date.now() + 3600_000),
+        },
+      });
+      await prisma.playerMatchStat.updateMany({
+        where: { leagueId: league.leagueId },
+        data: { td: 0, fantasyPoints: 99.9 },
+      });
+      await prisma.league.update({
+        where: { id: league.leagueId },
+        data: {
+          marketScale: 1,
+          scoringConfigJson: {
+            pts: 1,
+            reb: 1.2,
+            ast: 1.5,
+            stl: 2.5,
+            blk: 2.5,
+            tov: -1.5,
+            pf: -0.5,
+            min: 0,
+          },
+        },
+      });
+      await prisma.match.updateMany({
+        where: { leagueId: league.leagueId, status: 'FINAL' },
+        data: { winRewardMillions: 0.05 },
+      });
+      await prisma.leagueTeam.update({
+        where: { id: league.assignedTeamId },
+        data: { budgetMillions: 25.05 },
+      });
+
+      // Verificamos que syncLeagueClockToRealTime limpia los bloqueos imposibles (>5 / >1)
+      const syncResult = await syncLeagueClockToRealTime(prisma, {
+        leagueId: league.leagueId,
+        now: new Date(Date.now() + 5_000),
+      });
+      expect(syncResult.revertedMatchesCount).toBe(0);
+      expect(syncResult.clearedTransferLocksCount).toBeGreaterThanOrEqual(2);
+
+      const blocksAfterSync = await findActiveTransferBlocks(prisma, {
+        leagueId: league.leagueId,
+        proposingTeamId: league.assignedTeamId,
+      });
+      expect(blocksAfterSync.find((b) => b.playerId === samplePlayer.id)).toBeUndefined();
+
+      // Re-inyectamos bloqueo de 49 partidos y precio/historial 1x antes de ejecutar el upgrade
+      await prisma.marketHistory.deleteMany({
+        where: { leagueId: league.leagueId, playerInstanceId: samplePlayer.id },
+      });
+      await prisma.marketHistory.create({
+        data: {
+          leagueId: league.leagueId,
+          playerInstanceId: samplePlayer.id,
+          priceMillions: 10,
+          deltaMillions: 1.2,
+          reason: 'Post-jornada 1 legacy',
+        },
+      });
+      await prisma.playerInstance.update({
+        where: { id: samplePlayer.id },
+        data: {
+          tradeLockTeamId: league.assignedTeamId,
+          tradeLockUntilTeamMatches: 82,
+          priceMillions: 10,
+          priceDeltaMillions: 1.2,
+        },
+      });
+
+      const firstUpgrade = await recalculateAndUpgradeExistingLeagues(prisma, {
+        leagueId: league.leagueId,
+      });
+      expect(firstUpgrade.recalculatedStatsCount).toBeGreaterThan(0);
+      expect(firstUpgrade.scaledMarketLeaguesCount).toBe(1);
+      expect(firstUpgrade.unlockedPlayersCount).toBeGreaterThanOrEqual(1);
+
+      const [reloadedPlayer, reloadedStat, reloadedLeague, reloadedTeam, reloadedHistory] =
+        await Promise.all([
+          prisma.playerInstance.findUniqueOrThrow({ where: { id: samplePlayer.id } }),
+          prisma.playerMatchStat.findUniqueOrThrow({ where: { id: sampleStat.id } }),
+          prisma.league.findUniqueOrThrow({ where: { id: league.leagueId } }),
+          prisma.leagueTeam.findUniqueOrThrow({ where: { id: league.assignedTeamId } }),
+          prisma.marketHistory.findFirstOrThrow({
+            where: { leagueId: league.leagueId, playerInstanceId: samplePlayer.id },
+            orderBy: { recordedAt: 'desc' },
+          }),
+        ]);
+      expect(initialPrice).toBeGreaterThanOrEqual(1.5);
+      expect(reloadedPlayer.tradeLockUntilTeamMatches).toBeNull();
+      expect(reloadedPlayer.priceMillions).toBe(30);
+      expect(reloadedPlayer.priceDeltaMillions).toBe(3.6);
+      expect(reloadedHistory.priceMillions).toBe(30);
+      expect(reloadedHistory.deltaMillions).toBe(3.6);
+      expect(reloadedStat.fantasyPoints).toBe(nbaExpectedFp);
+      expect(reloadedLeague.marketScale).toBe(3);
+      expect(reloadedTeam.budgetMillions).toBeGreaterThanOrEqual(75);
+
+      // Ejecutar por segunda vez debe ser no-op estricto (nunca multiplica x3 de nuevo)
+      const secondUpgrade = await recalculateAndUpgradeExistingLeagues(prisma, {
+        leagueId: league.leagueId,
+      });
+      expect(secondUpgrade.scaledMarketLeaguesCount).toBe(0);
+      expect(secondUpgrade.recalculatedStatsCount).toBe(0);
+      const afterSecond = await prisma.playerInstance.findUniqueOrThrow({
+        where: { id: samplePlayer.id },
+      });
+      expect(afterSecond.priceMillions).toBe(30);
     }, 60_000);
   },
 );

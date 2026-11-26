@@ -1,3 +1,4 @@
+import { localizeDisqualificationReason } from '@dream5/shared';
 import { useQuery } from '@tanstack/react-query';
 import { Activity, Filter } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -16,14 +17,28 @@ import { ModalDialog } from '@/components/ui/Dialog';
 import { useToast } from '@/components/ui/toast-context';
 import { useDream5State } from '@/hooks/use-dream5-state';
 import { useI18n } from '@/hooks/use-i18n';
-import { formatExactCreditsFromMillions } from '@/lib/formatters';
+import { formatExactCreditsFromMillions, formatStatNumber } from '@/lib/formatters';
 import { translateMatchStatus } from '@/lib/i18n';
+import { shouldShowHomeFirst } from '@/lib/match-order';
 import { cycleThreeStateSort, sortItemsByState, type SortState } from '@/lib/table-sort';
 import { matchesApi } from '@/services/dream5-api';
 import { mapMatchDtoToUi } from '@/services/mappers';
 
 type BoxScoreSortKey =
-  'playerName' | 'teamCode' | 'position' | 'minutes' | 'pts' | 'reb' | 'ast' | 'fantasyPoints';
+  | 'playerName'
+  | 'teamCode'
+  | 'position'
+  | 'minutes'
+  | 'pts'
+  | 'reb'
+  | 'ast'
+  | 'td'
+  | 'tov'
+  | 'pf'
+  | 'tf'
+  | 'ft1'
+  | 'ft2'
+  | 'fantasyPoints';
 
 export function MatchesPage() {
   const { activeLeague } = useDream5State();
@@ -85,6 +100,12 @@ export function MatchesPage() {
       pts: (r) => r.pts,
       reb: (r) => r.reb,
       ast: (r) => r.ast,
+      td: (r) => r.td,
+      tov: (r) => r.tov,
+      pf: (r) => r.pf,
+      tf: (r) => r.tf,
+      ft1: (r) => r.ft1,
+      ft2: (r) => r.ft2,
       fantasyPoints: (r) => r.fantasyPoints,
     });
   }, [boxSort, detailQuery.data?.playerStats]);
@@ -188,12 +209,24 @@ export function MatchesPage() {
         }}
         title={
           detailQuery.data
-            ? `${detailQuery.data.match.homeTeamCode} vs ${detailQuery.data.match.awayTeamCode}`
+            ? shouldShowHomeFirst(detailQuery.data.match.id)
+              ? `${detailQuery.data.match.homeTeamCode} vs ${detailQuery.data.match.awayTeamCode}`
+              : `${detailQuery.data.match.awayTeamCode} vs ${detailQuery.data.match.homeTeamCode}`
             : t.matchesPage.matchDetailFallback
         }
         description={
           detailQuery.data
-            ? `${f(t.matchesPage.roundOption, { round: detailQuery.data.match.roundNumber })} · ${translateMatchStatus(detailQuery.data.match.status, language)}`
+            ? `${f(t.matchesPage.roundOption, { round: detailQuery.data.match.roundNumber })} · ${translateMatchStatus(detailQuery.data.match.status, language)} · ${new Intl.DateTimeFormat(
+                locale,
+                {
+                  day: '2-digit',
+                  month: '2-digit',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  hour12: false,
+                },
+              ).format(new Date(detailQuery.data.match.scheduledAt))}`
             : t.matchesPage.loadingBoxScore
         }
       >
@@ -202,231 +235,363 @@ export function MatchesPage() {
         ) : detailQuery.isError ? (
           <p className="py-4 text-sm text-muted-foreground">{t.common.loadErrorDesc}</p>
         ) : detailQuery.data ? (
-          <div className="max-h-[68vh] min-w-0 space-y-4 overflow-x-hidden overflow-y-auto pr-1 text-xs">
-            <div className="flex flex-col gap-3 rounded-lg border border-border bg-surface-deep/80 p-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex min-w-0 items-center gap-2.5">
-                <TeamLogo
-                  code={detailQuery.data.match.homeTeamCode}
-                  name={detailQuery.data.match.homeTeamName}
-                  size="md"
-                />
-                <div className="min-w-0">
-                  <p className="text-[11px] text-muted-foreground">{t.matchesPage.homeLabel}</p>
-                  <p className="truncate font-display text-base font-bold text-foreground sm:text-lg">
-                    {detailQuery.data.match.homeTeamName}
-                  </p>
-                </div>
-              </div>
-              <div className="shrink-0 text-center">
-                <p className="font-display text-2xl font-bold text-primary tabular-nums">
-                  {detailQuery.data.match.homeScore ?? '-'} :{' '}
-                  {detailQuery.data.match.awayScore ?? '-'}
-                </p>
-                {detailQuery.data.match.overtimeCount > 0 ? (
-                  <Badge variant="warning">{detailQuery.data.match.overtimeCount} OT</Badge>
-                ) : null}
-                {typeof detailQuery.data.match.winRewardMillions === 'number' &&
-                detailQuery.data.match.winRewardMillions > 0 ? (
-                  <p className="mt-1 text-[11px] font-semibold text-[var(--tone-success)] tabular-nums">
-                    {t.matchesPage.winnerRewardLabel}: +
-                    {formatExactCreditsFromMillions(
-                      detailQuery.data.match.winRewardMillions,
-                      locale,
-                      t.common.creditsShort,
-                    )}
-                  </p>
-                ) : null}
-              </div>
-              <div className="flex min-w-0 items-center justify-end gap-2.5 text-right">
-                <div className="min-w-0">
-                  <p className="text-[11px] text-muted-foreground">{t.matchesPage.awayLabel}</p>
-                  <p className="truncate font-display text-base font-bold text-foreground sm:text-lg">
-                    {detailQuery.data.match.awayTeamName}
-                  </p>
-                </div>
-                <TeamLogo
-                  code={detailQuery.data.match.awayTeamCode}
-                  name={detailQuery.data.match.awayTeamName}
-                  size="md"
-                />
-              </div>
-            </div>
+          (() => {
+            const detail = detailQuery.data;
+            const homeFirst = shouldShowHomeFirst(detail.match.id);
+            const leftSide = homeFirst
+              ? {
+                  code: detail.match.homeTeamCode,
+                  name: detail.match.homeTeamName,
+                  score: detail.match.homeScore,
+                  roleLabel: t.matchesPage.homeLabel,
+                }
+              : {
+                  code: detail.match.awayTeamCode,
+                  name: detail.match.awayTeamName,
+                  score: detail.match.awayScore,
+                  roleLabel: t.matchesPage.awayLabel,
+                };
+            const rightSide = homeFirst
+              ? {
+                  code: detail.match.awayTeamCode,
+                  name: detail.match.awayTeamName,
+                  score: detail.match.awayScore,
+                  roleLabel: t.matchesPage.awayLabel,
+                }
+              : {
+                  code: detail.match.homeTeamCode,
+                  name: detail.match.homeTeamName,
+                  score: detail.match.homeScore,
+                  roleLabel: t.matchesPage.homeLabel,
+                };
 
-            {detailQuery.data.playerStats.length === 0 ? (
-              <Card>
-                <CardContent className="flex items-center gap-2 py-4 text-muted-foreground">
-                  <Activity className="h-4 w-4 text-primary" />
-                  {t.matchesPage.scheduledNotice}
-                </CardContent>
-              </Card>
-            ) : (
-              <>
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm">{t.matchesPage.boxScoreTitle}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="dream5-table-scroll rounded-lg border border-border/70 bg-surface-deep/70">
-                      <table className="w-full min-w-[640px] border-collapse text-left text-xs">
-                        <thead>
-                          <tr className="border-b border-border bg-surface-elevated/90 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
-                            <SortableHeaderCell
-                              columnKey="playerName"
-                              label={t.matchesPage.playerCol}
-                              sort={boxSort}
-                              onSort={(key) => {
-                                setBoxSort((prev) => cycleThreeStateSort(prev, key));
-                              }}
-                              className="px-2 py-2"
-                            />
-                            <SortableHeaderCell
-                              columnKey="teamCode"
-                              label={t.matchesPage.teamCol}
-                              sort={boxSort}
-                              onSort={(key) => {
-                                setBoxSort((prev) => cycleThreeStateSort(prev, key));
-                              }}
-                              className="px-2 py-2"
-                            />
-                            <SortableHeaderCell
-                              columnKey="position"
-                              label={t.matchesPage.posCol}
-                              sort={boxSort}
-                              onSort={(key) => {
-                                setBoxSort((prev) => cycleThreeStateSort(prev, key));
-                              }}
-                              className="px-2 py-2"
-                            />
-                            <SortableHeaderCell
-                              columnKey="minutes"
-                              label="MIN"
-                              sort={boxSort}
-                              onSort={(key) => {
-                                setBoxSort((prev) => cycleThreeStateSort(prev, key));
-                              }}
-                              align="right"
-                              className="px-2 py-2"
-                            />
-                            <SortableHeaderCell
-                              columnKey="pts"
-                              label={t.playerUi.ptsCol}
-                              sort={boxSort}
-                              onSort={(key) => {
-                                setBoxSort((prev) => cycleThreeStateSort(prev, key));
-                              }}
-                              align="right"
-                              className="px-2 py-2"
-                            />
-                            <SortableHeaderCell
-                              columnKey="reb"
-                              label={t.playerUi.rebCol}
-                              sort={boxSort}
-                              onSort={(key) => {
-                                setBoxSort((prev) => cycleThreeStateSort(prev, key));
-                              }}
-                              align="right"
-                              className="px-2 py-2"
-                            />
-                            <SortableHeaderCell
-                              columnKey="ast"
-                              label={t.playerUi.astCol}
-                              sort={boxSort}
-                              onSort={(key) => {
-                                setBoxSort((prev) => cycleThreeStateSort(prev, key));
-                              }}
-                              align="right"
-                              className="px-2 py-2"
-                            />
-                            <SortableHeaderCell
-                              columnKey="fantasyPoints"
-                              label={t.common.dp}
-                              sort={boxSort}
-                              onSort={(key) => {
-                                setBoxSort((prev) => cycleThreeStateSort(prev, key));
-                              }}
-                              align="right"
-                              className="px-2 py-2"
-                            />
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border/60">
-                          {sortedBoxScore.map((ps) => (
-                            <tr
-                              key={ps.playerInstanceId}
-                              {...getTriggerProps({
-                                id: ps.playerInstanceId,
-                                name: ps.playerName,
-                                position: ps.position,
-                                teamId: ps.leagueTeamId,
-                                teamCode: ps.teamCode,
-                              })}
-                              onClick={() => {
-                                inspectPlayer(ps.playerInstanceId);
-                              }}
-                              className="cursor-pointer transition-colors hover:bg-secondary/50"
-                            >
-                              <td className="px-2 py-1.5">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <span className="font-medium text-foreground">
-                                    {ps.playerName}
-                                  </span>
-                                  {ps.wasStarter ? (
-                                    <Badge variant="primary">{t.matchesPage.starterShort}</Badge>
-                                  ) : null}
-                                  {ps.injured ? (
-                                    <Badge variant="danger">{t.matchesPage.injuredShort}</Badge>
-                                  ) : null}
-                                  {ps.ejected ? (
-                                    <Badge variant="warning">{t.matchesPage.ejectedShort}</Badge>
-                                  ) : null}
-                                </div>
-                              </td>
-                              <td className="px-2 py-1.5 font-bold text-muted-foreground">
-                                {ps.teamCode}
-                              </td>
-                              <td className="px-2 py-1.5">
-                                <PositionBadge position={ps.position} />
-                              </td>
-                              <td className="px-2 py-1.5 text-right text-muted-foreground tabular-nums">
-                                {ps.minutes}
-                              </td>
-                              <td className="px-2 py-1.5 text-right tabular-nums">{ps.pts}</td>
-                              <td className="px-2 py-1.5 text-right tabular-nums">{ps.reb}</td>
-                              <td className="px-2 py-1.5 text-right tabular-nums">{ps.ast}</td>
-                              <td className="px-2 py-1.5 text-right font-display font-bold text-primary tabular-nums">
-                                {ps.fantasyPoints.toFixed(1)}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+            return (
+              <div className="max-h-[68vh] min-w-0 space-y-4 overflow-x-hidden overflow-y-auto pr-1 text-xs">
+                <div className="rounded-lg border border-border bg-surface-deep/80 p-2.5 sm:p-3.5">
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 sm:gap-4">
+                    <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
+                      <TeamLogo code={leftSide.code} name={leftSide.name} size="md" />
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-medium text-muted-foreground uppercase sm:text-[11px]">
+                          {leftSide.roleLabel}
+                        </p>
+                        <p className="truncate font-display text-sm font-bold text-foreground sm:hidden">
+                          {leftSide.code}
+                        </p>
+                        <p className="hidden truncate font-display text-base font-bold text-foreground sm:block sm:text-lg">
+                          {leftSide.name}
+                        </p>
+                      </div>
                     </div>
-                  </CardContent>
-                </Card>
+                    <div className="shrink-0 text-center">
+                      <p className="font-display text-xl font-bold text-primary tabular-nums sm:text-2xl">
+                        {leftSide.score ?? '-'} : {rightSide.score ?? '-'}
+                      </p>
+                      {detail.match.overtimeCount > 0 ? (
+                        <Badge variant="warning">{detail.match.overtimeCount} OT</Badge>
+                      ) : null}
+                    </div>
+                    <div className="flex min-w-0 items-center justify-end gap-1.5 text-right sm:gap-2">
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-medium text-muted-foreground uppercase sm:text-[11px]">
+                          {rightSide.roleLabel}
+                        </p>
+                        <p className="truncate font-display text-sm font-bold text-foreground sm:hidden">
+                          {rightSide.code}
+                        </p>
+                        <p className="hidden truncate font-display text-base font-bold text-foreground sm:block sm:text-lg">
+                          {rightSide.name}
+                        </p>
+                      </div>
+                      <TeamLogo code={rightSide.code} name={rightSide.name} size="md" />
+                    </div>
+                  </div>
+                  {typeof detail.match.winRewardMillions === 'number' &&
+                  detail.match.winRewardMillions > 0 ? (
+                    <p className="mt-2 border-t border-border/60 pt-1.5 text-center text-[10px] font-semibold text-[var(--tone-success)] tabular-nums sm:text-[11px]">
+                      {t.matchesPage.winnerRewardLabel}: +
+                      {formatExactCreditsFromMillions(
+                        detail.match.winRewardMillions,
+                        locale,
+                        t.common.creditsShort,
+                      )}
+                    </p>
+                  ) : null}
+                </div>
 
-                {detailQuery.data.events.length > 0 ? (
+                {detailQuery.data.playerStats.length === 0 ? (
                   <Card>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm">{t.matchesPage.eventsTitle}</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-1">
-                      {detailQuery.data.events.map((ev) => (
-                        <div
-                          key={ev.id}
-                          className="flex flex-wrap items-center justify-between gap-2 rounded border border-border/60 bg-surface-deep/50 px-2 py-1"
-                        >
-                          <span className="min-w-0 text-foreground">{ev.description}</span>
-                          <Badge variant="outline">
-                            Q{ev.quarter} · {ev.clockLabel}
-                          </Badge>
-                        </div>
-                      ))}
+                    <CardContent className="flex items-center gap-2 py-4 text-muted-foreground">
+                      <Activity className="h-4 w-4 text-primary" />
+                      {t.matchesPage.scheduledNotice}
                     </CardContent>
                   </Card>
-                ) : null}
-              </>
-            )}
-          </div>
+                ) : (
+                  <>
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm">{t.matchesPage.boxScoreTitle}</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="dream5-table-scroll rounded-lg border border-border/70 bg-surface-deep/70">
+                          <table className="w-full min-w-[780px] border-collapse text-left text-xs">
+                            <thead>
+                              <tr className="border-b border-border bg-surface-elevated/90 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
+                                <SortableHeaderCell
+                                  columnKey="playerName"
+                                  label={t.matchesPage.playerCol}
+                                  sort={boxSort}
+                                  onSort={(key) => {
+                                    setBoxSort((prev) => cycleThreeStateSort(prev, key));
+                                  }}
+                                  className="px-2 py-2"
+                                />
+                                <SortableHeaderCell
+                                  columnKey="teamCode"
+                                  label={t.matchesPage.teamCol}
+                                  sort={boxSort}
+                                  onSort={(key) => {
+                                    setBoxSort((prev) => cycleThreeStateSort(prev, key));
+                                  }}
+                                  className="px-2 py-2"
+                                />
+                                <SortableHeaderCell
+                                  columnKey="position"
+                                  label={t.matchesPage.posCol}
+                                  sort={boxSort}
+                                  onSort={(key) => {
+                                    setBoxSort((prev) => cycleThreeStateSort(prev, key));
+                                  }}
+                                  className="px-2 py-2"
+                                />
+                                <SortableHeaderCell
+                                  columnKey="minutes"
+                                  label="MIN"
+                                  sort={boxSort}
+                                  onSort={(key) => {
+                                    setBoxSort((prev) => cycleThreeStateSort(prev, key));
+                                  }}
+                                  align="right"
+                                  className="px-2 py-2"
+                                />
+                                <SortableHeaderCell
+                                  columnKey="pts"
+                                  label={t.playerUi.ptsCol}
+                                  sort={boxSort}
+                                  onSort={(key) => {
+                                    setBoxSort((prev) => cycleThreeStateSort(prev, key));
+                                  }}
+                                  align="right"
+                                  className="px-2 py-2"
+                                />
+                                <SortableHeaderCell
+                                  columnKey="reb"
+                                  label={t.playerUi.rebCol}
+                                  sort={boxSort}
+                                  onSort={(key) => {
+                                    setBoxSort((prev) => cycleThreeStateSort(prev, key));
+                                  }}
+                                  align="right"
+                                  className="px-2 py-2"
+                                />
+                                <SortableHeaderCell
+                                  columnKey="ast"
+                                  label={t.playerUi.astCol}
+                                  sort={boxSort}
+                                  onSort={(key) => {
+                                    setBoxSort((prev) => cycleThreeStateSort(prev, key));
+                                  }}
+                                  align="right"
+                                  className="px-2 py-2"
+                                />
+                                <SortableHeaderCell
+                                  columnKey="td"
+                                  label={t.playerUi.tdCol}
+                                  sort={boxSort}
+                                  onSort={(key) => {
+                                    setBoxSort((prev) => cycleThreeStateSort(prev, key));
+                                  }}
+                                  align="right"
+                                  className="px-2 py-2"
+                                />
+                                <SortableHeaderCell
+                                  columnKey="tov"
+                                  label={t.playerUi.tovCol}
+                                  sort={boxSort}
+                                  onSort={(key) => {
+                                    setBoxSort((prev) => cycleThreeStateSort(prev, key));
+                                  }}
+                                  align="right"
+                                  className="px-2 py-2"
+                                />
+                                <SortableHeaderCell
+                                  columnKey="pf"
+                                  label={t.playerUi.pfCol}
+                                  sort={boxSort}
+                                  onSort={(key) => {
+                                    setBoxSort((prev) => cycleThreeStateSort(prev, key));
+                                  }}
+                                  align="right"
+                                  className="px-2 py-2"
+                                />
+                                <SortableHeaderCell
+                                  columnKey="tf"
+                                  label={t.playerUi.tfCol}
+                                  sort={boxSort}
+                                  onSort={(key) => {
+                                    setBoxSort((prev) => cycleThreeStateSort(prev, key));
+                                  }}
+                                  align="right"
+                                  className="px-2 py-2"
+                                />
+                                <SortableHeaderCell
+                                  columnKey="ft1"
+                                  label={t.playerUi.ft1Col}
+                                  sort={boxSort}
+                                  onSort={(key) => {
+                                    setBoxSort((prev) => cycleThreeStateSort(prev, key));
+                                  }}
+                                  align="right"
+                                  className="px-2 py-2"
+                                />
+                                <SortableHeaderCell
+                                  columnKey="ft2"
+                                  label={t.playerUi.ft2Col}
+                                  sort={boxSort}
+                                  onSort={(key) => {
+                                    setBoxSort((prev) => cycleThreeStateSort(prev, key));
+                                  }}
+                                  align="right"
+                                  className="px-2 py-2"
+                                />
+                                <SortableHeaderCell
+                                  columnKey="fantasyPoints"
+                                  label={t.common.dp}
+                                  sort={boxSort}
+                                  onSort={(key) => {
+                                    setBoxSort((prev) => cycleThreeStateSort(prev, key));
+                                  }}
+                                  align="right"
+                                  className="px-2 py-2"
+                                />
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-border/60">
+                              {sortedBoxScore.map((ps) => {
+                                const dqLabel = ps.disqualificationReason
+                                  ? localizeDisqualificationReason(
+                                      ps.disqualificationReason,
+                                      language,
+                                    )
+                                  : t.matchesPage.ejectedShort;
+                                return (
+                                  <tr
+                                    key={ps.playerInstanceId}
+                                    {...getTriggerProps({
+                                      id: ps.playerInstanceId,
+                                      name: ps.playerName,
+                                      position: ps.position,
+                                      teamId: ps.leagueTeamId,
+                                      teamCode: ps.teamCode,
+                                    })}
+                                    onClick={() => {
+                                      inspectPlayer(ps.playerInstanceId);
+                                    }}
+                                    className="cursor-pointer transition-colors hover:bg-secondary/50"
+                                  >
+                                    <td className="px-2 py-1.5">
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <span className="font-medium text-foreground">
+                                          {ps.playerName}
+                                        </span>
+                                        {ps.wasStarter ? (
+                                          <Badge variant="primary">
+                                            {t.matchesPage.starterShort}
+                                          </Badge>
+                                        ) : null}
+                                        {ps.injured ? (
+                                          <Badge variant="danger">
+                                            {t.matchesPage.injuredShort}
+                                          </Badge>
+                                        ) : null}
+                                        {ps.ejected || ps.disqualified ? (
+                                          <Badge variant="warning">{dqLabel}</Badge>
+                                        ) : null}
+                                      </div>
+                                    </td>
+                                    <td className="px-2 py-1.5 font-bold text-muted-foreground">
+                                      {ps.teamCode}
+                                    </td>
+                                    <td className="px-2 py-1.5">
+                                      <PositionBadge position={ps.position} />
+                                    </td>
+                                    <td className="px-2 py-1.5 text-right text-muted-foreground tabular-nums">
+                                      {ps.minutes}
+                                    </td>
+                                    <td className="px-2 py-1.5 text-right tabular-nums">
+                                      {ps.pts}
+                                    </td>
+                                    <td className="px-2 py-1.5 text-right tabular-nums">
+                                      {ps.reb}
+                                    </td>
+                                    <td className="px-2 py-1.5 text-right tabular-nums">
+                                      {ps.ast}
+                                    </td>
+                                    <td className="px-2 py-1.5 text-right tabular-nums">{ps.td}</td>
+                                    <td className="px-2 py-1.5 text-right tabular-nums">
+                                      {ps.tov}
+                                    </td>
+                                    <td className="px-2 py-1.5 text-right tabular-nums">{ps.pf}</td>
+                                    <td className="px-2 py-1.5 text-right tabular-nums">{ps.tf}</td>
+                                    <td className="px-2 py-1.5 text-right tabular-nums">
+                                      {ps.ft1}
+                                    </td>
+                                    <td className="px-2 py-1.5 text-right tabular-nums">
+                                      {ps.ft2}
+                                    </td>
+                                    <td
+                                      className={`px-2 py-1.5 text-right font-display font-bold tabular-nums ${
+                                        ps.fantasyPoints < 0
+                                          ? 'text-[var(--tone-danger)]'
+                                          : 'text-primary'
+                                      }`}
+                                    >
+                                      {formatStatNumber(ps.fantasyPoints)}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {detailQuery.data.events.length > 0 ? (
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm">{t.matchesPage.eventsTitle}</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-1">
+                          {detailQuery.data.events.map((ev) => (
+                            <div
+                              key={ev.id}
+                              className="flex flex-wrap items-center justify-between gap-2 rounded border border-border/60 bg-surface-deep/50 px-2 py-1"
+                            >
+                              <span className="min-w-0 text-foreground">{ev.description}</span>
+                              <Badge variant="outline">
+                                Q{ev.quarter} · {ev.clockLabel}
+                              </Badge>
+                            </div>
+                          ))}
+                        </CardContent>
+                      </Card>
+                    ) : null}
+                  </>
+                )}
+              </div>
+            );
+          })()
         ) : null}
       </ModalDialog>
     </div>

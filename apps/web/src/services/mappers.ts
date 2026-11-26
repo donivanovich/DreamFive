@@ -141,9 +141,16 @@ export function mapStandingDtoToUi(dto: StandingEntryDto): StandingEntry {
 
 export function mapMatchDtoToUi(dto: MatchFixtureDto, language: AppLanguage = 'en'): MatchFixture {
   const d = new Date(dto.scheduledAt);
+  const locale = getLocaleCode(language);
   const roundPrefix = language === 'es' ? 'J' : 'R';
-  const dateLabel = `${roundPrefix}${String(dto.roundNumber)} · ${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
-  const timeLabel = `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')} UTC`;
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const dateLabel = `${roundPrefix}${String(dto.roundNumber)} · ${day}/${month}`;
+  const timeLabel = new Intl.DateTimeFormat(locale, {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(d);
 
   return {
     id: dto.id,
@@ -206,6 +213,7 @@ export function mapTransferOfferDtoToUi(
     counterpartyTeam: isIncoming
       ? `${dto.proposingTeamName} (${dto.proposingTeamCode})`
       : `${dto.receivingTeamName} (${dto.receivingTeamCode})`,
+    counterpartyCode: isIncoming ? dto.proposingTeamCode : dto.receivingTeamCode,
     dateLabel: dto.responseNote
       ? `${dateLabel} · ${localizeTransferResponseNote(dto.responseNote, language)}`
       : dateLabel,

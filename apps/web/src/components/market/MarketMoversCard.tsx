@@ -4,7 +4,7 @@ import { PlayerAvatar, PositionBadge, TrendDeltaBadge } from '@/components/playe
 import { uiToContextTarget, usePlayerContextMenu } from '@/components/players/player-context';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { useI18n } from '@/hooks/use-i18n';
-import { formatMillions } from '@/lib/formatters';
+import { formatMillions, formatStatNumber } from '@/lib/formatters';
 import type { Player } from '@/types/fantasy';
 
 export function MarketMoversCard({
@@ -21,7 +21,7 @@ export function MarketMoversCard({
 
   return (
     <Card>
-      <CardHeader className="pb-3">
+      <CardHeader className="pb-2 sm:pb-3">
         <div className="flex items-center gap-2">
           {direction === 'up' ? (
             <ArrowUpRight className="h-4 w-4 text-[var(--tone-success)]" />
@@ -31,7 +31,7 @@ export function MarketMoversCard({
           <CardTitle>{title}</CardTitle>
         </div>
       </CardHeader>
-      <CardContent className="space-y-2.5">
+      <CardContent className="space-y-1.5 sm:space-y-2.5">
         {players.map((player) => (
           <div
             key={player.id}
@@ -39,9 +39,9 @@ export function MarketMoversCard({
             onClick={() => {
               inspectPlayer(player.id);
             }}
-            className="flex cursor-pointer items-center justify-between gap-3 rounded-md border border-border/80 bg-surface-deep/70 px-3 py-2 transition-colors hover:border-primary/40 hover:bg-secondary/40"
+            className="flex cursor-pointer items-center justify-between gap-2 rounded-md border border-border/80 bg-surface-deep/70 px-2.5 py-1.5 transition-colors hover:border-primary/40 hover:bg-secondary/40 sm:gap-3 sm:px-3 sm:py-2"
           >
-            <div className="flex min-w-0 items-center gap-2.5">
+            <div className="flex min-w-0 items-center gap-2 sm:gap-2.5">
               <PlayerAvatar
                 initials={player.initials}
                 name={player.name}
@@ -51,13 +51,15 @@ export function MarketMoversCard({
               />
               <PositionBadge position={player.position} />
               <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-foreground">{player.name}</p>
-                <p className="text-xs text-muted-foreground">
-                  {player.teamAbbr} · {player.stats.fpPerGame.toFixed(1)} {t.common.dp}
+                <p className="truncate text-xs font-medium text-foreground sm:text-sm">
+                  {player.name}
+                </p>
+                <p className="text-[11px] text-muted-foreground sm:text-xs">
+                  {player.teamAbbr} · {formatStatNumber(player.stats.fpPerGame)} {t.common.dp}
                 </p>
               </div>
             </div>
-            <div className="flex shrink-0 items-center gap-2">
+            <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
               <span className="text-xs font-semibold text-foreground tabular-nums">
                 {formatMillions(player.priceMillions)}
               </span>

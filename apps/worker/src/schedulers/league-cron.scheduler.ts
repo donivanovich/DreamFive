@@ -23,7 +23,7 @@ export class LeagueCronScheduler implements OnModuleInit {
       {
         name: JOB_NAMES.schedulerTick,
         data: { source: 'bullmq-24x7-scheduler' },
-        opts: { removeOnComplete: 20, removeOnFail: 10 },
+        opts: { removeOnComplete: 5, removeOnFail: 10 },
       },
     );
 

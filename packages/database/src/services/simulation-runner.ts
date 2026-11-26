@@ -1,24 +1,31 @@
 import { randomUUID } from 'node:crypto';
 import {
+  formatCleanDecimal,
   LEAGUE_RULES,
+  parseLeagueScoringWeights,
   type Position,
   PROVISIONAL_GAME_CONFIG,
-  type ScoringWeightsConfig,
   type SeasonResetConfig,
 } from '@dream5/shared';
 import {
+  calculatePlayerDreamPointsBreakdown,
   createSeededRng,
-  distributeRoundsAcrossMonth,
+  distributeMatchSlotsAcrossMonth,
   evaluatePlayerProgression,
   generateDoubleRoundRobinFixtures,
   generateReplacementRookieBlueprint,
   getDaysInCalendarMonth,
   recalculateMarketPrices,
+  resolveZonedDateIso,
   simulateBasketballMatch,
 } from '@dream5/simulation-engine';
 
 import { Prisma, type PrismaClient } from '../generated/prisma/client.js';
-import { formatSpanishSeasonName, pickDefaultLineupForTeam } from './league-bootstrap.js';
+import {
+  formatSpanishSeasonName,
+  pickDefaultLineupForTeam,
+  resolveLeagueTimeZone,
+} from './league-bootstrap.js';
 import {
   buildMatchResultMailInput,
   buildRetirementReplacementMailInput,
@@ -26,29 +33,6 @@ import {
   recordHumanTeamMailsInTx,
 } from './league-mail.js';
 import { runAutonomousCpuTransfersInTx } from './transfer-engine.js';
-
-function parseScoringWeights(raw: unknown): ScoringWeightsConfig {
-  const defaults = PROVISIONAL_GAME_CONFIG.scoringWeights;
-  if (!raw || typeof raw !== 'object') {
-    return defaults;
-  }
-  const obj = raw as Record<string, unknown>;
-  const readNum = (key: keyof ScoringWeightsConfig): number => {
-    const val = obj[key];
-    return typeof val === 'number' && Number.isFinite(val) ? val : defaults[key];
-  };
-
-  return {
-    pts: readNum('pts'),
-    reb: readNum('reb'),
-    ast: readNum('ast'),
-    stl: readNum('stl'),
-    blk: readNum('blk'),
-    tov: readNum('tov'),
-    pf: readNum('pf'),
-    min: readNum('min'),
-  };
-}
 
 export interface SimulateSingleMatchResult {
   readonly alreadyCompleted: boolean;
@@ -124,7 +108,7 @@ export async function simulateSingleMatchInTx(
     priceMillions: p.priceMillions,
   });
 
-  const scoringWeights = parseScoringWeights(match.league.scoringConfigJson);
+  const scoringWeights = parseLeagueScoringWeights(match.league.scoringConfigJson);
   const simOutput = simulateBasketballMatch({
     homeTeam: {
       id: match.homeTeam.id,
@@ -185,11 +169,16 @@ export async function simulateSingleMatchInTx(
       ast: box.ast,
       stl: box.stl,
       blk: box.blk,
+      td: box.td,
       tov: box.tov,
       pf: box.pf,
+      tf: box.tf,
+      ft1: box.ft1,
+      ft2: box.ft2,
       fantasyPoints: box.fantasyPoints,
       wasStarter: box.wasStarter,
       ejected: box.ejected,
+      disqualificationReason: box.disqualificationReason,
       injured: box.injured,
     })),
   });
@@ -306,7 +295,7 @@ export async function simulateSingleMatchInTx(
           opponentTeamName: opponent.name,
         },
       });
-    } else if (box.ejected || box.nextStatus === 'SUSPENDED') {
+    } else if (box.nextStatus === 'SUSPENDED' && box.nextGamesOut > 0) {
       nextStatus = 'SUSPENDED';
       nextGamesOut = Math.max(1, box.nextGamesOut);
       nextStatusNote = box.statusReason ?? 'Disciplinary ejection';
@@ -347,6 +336,27 @@ export async function simulateSingleMatchInTx(
       nextStatus = 'HEALTHY';
       nextGamesOut = 0;
       nextStatusNote = null;
+      if (box.disqualified && box.disqualificationReason) {
+        const opponent =
+          existing.currentTeamId === match.homeTeamId ? match.awayTeam : match.homeTeam;
+        matchMails.push({
+          leagueId: params.leagueId,
+          seasonId: match.seasonId,
+          leagueTeamId: existing.currentTeamId,
+          roundNumber: match.roundNumber,
+          category: 'EJECTION',
+          subject: `Match Disqualification (R${String(match.roundNumber)}): ${existing.name}`,
+          body: `${existing.name} (${existing.position}) was disqualified from the match against ${opponent.name} (${box.disqualificationReason}) and stopped accumulating stats. Available for the next match.`,
+          metadata: {
+            playerId: existing.id,
+            playerName: existing.name,
+            playerPosition: existing.position,
+            gamesOut: 0,
+            reason: box.disqualificationReason,
+            opponentTeamName: opponent.name,
+          },
+        });
+      }
     }
 
     const played = box.minutes > 0;
@@ -663,7 +673,7 @@ export async function recalculateRoundStandingsInTx(
     });
   }
 
-  // Recompensa económica por victoria en la jornada: Dream Points de la jornada x 1000
+  // Recompensa económica por victoria en la jornada: Dream Points de la jornada x 100.000
   const unpaidFinalMatches = await tx.match.findMany({
     where: {
       leagueId,
@@ -761,6 +771,59 @@ export interface SimulateRoundResult {
   readonly seasonCompleted: boolean;
 }
 
+export interface SimulateMatchProgressResult {
+  readonly alreadyCompleted: boolean;
+  readonly matchId: string;
+  readonly seasonId: string;
+  readonly roundNumber: number;
+  readonly homeScore: number;
+  readonly awayScore: number;
+  readonly roundCompleted: boolean;
+  readonly seasonCompleted: boolean;
+}
+
+/**
+ * Adquiere un bloqueo transaccional exclusivo por liga en PostgreSQL para evitar
+ * conflictos de escritura o interbloqueos entre worker, API y recálculos horarios.
+ */
+export async function acquireLeagueAdvisoryLockInTx(
+  tx: Prisma.TransactionClient,
+  leagueId: string,
+): Promise<void> {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${leagueId}))`;
+}
+
+async function withLeagueTxLock<T>(
+  prisma: PrismaClient,
+  leagueId: string,
+  fn: (tx: Prisma.TransactionClient) => Promise<T>,
+  options: { readonly timeout?: number; readonly maxWait?: number } = {},
+): Promise<T> {
+  const maxAttempts = 3;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await prisma.$transaction(
+        async (tx) => {
+          await acquireLeagueAdvisoryLockInTx(tx, leagueId);
+          return fn(tx);
+        },
+        {
+          timeout: options.timeout ?? 60_000,
+          maxWait: options.maxWait ?? 15_000,
+        },
+      );
+    } catch (error: unknown) {
+      const isWriteConflict =
+        error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034';
+      if (!isWriteConflict || attempt === maxAttempts) {
+        throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, attempt * 120));
+    }
+  }
+  throw new Error('No se pudo completar la transacción tras varios reintentos.');
+}
+
 async function ageActivePlayersIfNeededInTx(
   tx: Prisma.TransactionClient,
   params: {
@@ -786,6 +849,234 @@ async function ageActivePlayersIfNeededInTx(
   return true;
 }
 
+async function finalizeRoundCompletionInTx(
+  tx: Prisma.TransactionClient,
+  params: {
+    readonly leagueId: string;
+    readonly season: {
+      readonly id: string;
+      readonly totalRounds: number;
+      readonly currentRoundNumber: number;
+      readonly playersAged: boolean;
+    };
+    readonly roundNumber: number;
+    readonly latestClockAt?: Date;
+    readonly runPostRoundEconomy: boolean;
+  },
+): Promise<{ readonly seasonCompleted: boolean }> {
+  const { leagueId, season, roundNumber, latestClockAt, runPostRoundEconomy } = params;
+
+  await recalculateRoundStandingsInTx(tx, {
+    leagueId,
+    seasonId: season.id,
+    roundNumber,
+  });
+
+  const nextRoundNumber = Math.max(season.currentRoundNumber, roundNumber);
+  await tx.season.update({
+    where: { id: season.id },
+    data: { currentRoundNumber: nextRoundNumber },
+  });
+
+  if (latestClockAt) {
+    const league = await tx.league.findUnique({ where: { id: leagueId } });
+    if (league && latestClockAt > league.gameClockAt) {
+      await tx.league.update({
+        where: { id: league.id },
+        data: { gameClockAt: latestClockAt },
+      });
+    }
+  }
+
+  // Bloqueamos la alineación de la jornada simulada y copiamos titulares a round+1
+  await tx.lineup.updateMany({
+    where: {
+      leagueId,
+      seasonId: season.id,
+      roundNumber,
+    },
+    data: { isLocked: true },
+  });
+
+  if (roundNumber < season.totalRounds) {
+    const nextRound = roundNumber + 1;
+    const currentLineups = await tx.lineup.findMany({
+      where: {
+        leagueId,
+        seasonId: season.id,
+        roundNumber,
+      },
+    });
+    for (const l of currentLineups) {
+      const existsNext = await tx.lineup.findUnique({
+        where: {
+          leagueId_seasonId_leagueTeamId_roundNumber: {
+            leagueId,
+            seasonId: season.id,
+            leagueTeamId: l.leagueTeamId,
+            roundNumber: nextRound,
+          },
+        },
+      });
+      if (!existsNext) {
+        await tx.lineup.create({
+          data: {
+            leagueId,
+            seasonId: season.id,
+            leagueTeamId: l.leagueTeamId,
+            roundNumber: nextRound,
+            pgPlayerId: l.pgPlayerId,
+            sgPlayerId: l.sgPlayerId,
+            sfPlayerId: l.sfPlayerId,
+            pfPlayerId: l.pfPlayerId,
+            cPlayerId: l.cPlayerId,
+            isLocked: false,
+          },
+        });
+      }
+    }
+  }
+
+  if (runPostRoundEconomy) {
+    await repriceLeagueMarketInTx(tx, {
+      leagueId,
+      reason: `Post-jornada ${String(roundNumber)}`,
+    });
+    await runAutonomousCpuTransfersInTx(tx, {
+      leagueId,
+      seasonId: season.id,
+      roundNumber,
+    });
+  }
+
+  let seasonCompleted = false;
+  if (nextRoundNumber >= season.totalRounds) {
+    const remainingScheduled = await tx.match.count({
+      where: {
+        leagueId,
+        seasonId: season.id,
+        status: 'SCHEDULED',
+      },
+    });
+    if (remainingScheduled === 0) {
+      seasonCompleted = true;
+      await ageActivePlayersIfNeededInTx(tx, {
+        leagueId,
+        seasonId: season.id,
+        alreadyAged: season.playersAged,
+      });
+    }
+  }
+
+  return { seasonCompleted };
+}
+
+/**
+ * Simula un partido concreto dentro de una transacción con bloqueo por liga;
+ * actualiza clasificación al instante y, si era el último partido de la jornada,
+ * ejecuta el cierre completo de jornada (lineups, mercado, CPU y fin de temporada).
+ */
+export async function simulateScheduledMatchAndProgress(
+  prisma: PrismaClient,
+  params: {
+    readonly leagueId: string;
+    readonly matchId: string;
+    readonly simulatedAt?: Date;
+  },
+): Promise<SimulateMatchProgressResult> {
+  return withLeagueTxLock(prisma, params.leagueId, async (tx) => {
+    const simRes = await simulateSingleMatchInTx(tx, params);
+    if (simRes.alreadyCompleted) {
+      return {
+        ...simRes,
+        roundCompleted: false,
+        seasonCompleted: false,
+      };
+    }
+
+    const remainingInRound = await tx.match.count({
+      where: {
+        leagueId: params.leagueId,
+        seasonId: simRes.seasonId,
+        roundNumber: simRes.roundNumber,
+        status: 'SCHEDULED',
+      },
+    });
+
+    if (remainingInRound > 0) {
+      await recalculateRoundStandingsInTx(tx, {
+        leagueId: params.leagueId,
+        seasonId: simRes.seasonId,
+        roundNumber: simRes.roundNumber,
+      });
+      return {
+        ...simRes,
+        roundCompleted: false,
+        seasonCompleted: false,
+      };
+    }
+
+    const season = await tx.season.findUnique({ where: { id: simRes.seasonId } });
+    if (!season) {
+      throw new Error(`Temporada ${simRes.seasonId} no encontrada tras simular partido.`);
+    }
+
+    const latestRoundMatch = await tx.match.findFirst({
+      where: {
+        leagueId: params.leagueId,
+        seasonId: season.id,
+        roundNumber: simRes.roundNumber,
+      },
+      orderBy: { scheduledAt: 'desc' },
+      select: { scheduledAt: true },
+    });
+
+    const completion = await finalizeRoundCompletionInTx(tx, {
+      leagueId: params.leagueId,
+      season,
+      roundNumber: simRes.roundNumber,
+      ...(latestRoundMatch?.scheduledAt ? { latestClockAt: latestRoundMatch.scheduledAt } : {}),
+      runPostRoundEconomy: true,
+    });
+
+    return {
+      ...simRes,
+      roundCompleted: true,
+      seasonCompleted: completion.seasonCompleted,
+    };
+  });
+}
+
+/**
+ * Caduca automáticamente ofertas de traspaso pendientes cuya fecha límite haya vencido.
+ */
+export async function expirePendingTransferOffers(
+  prisma: PrismaClient,
+  params: { readonly leagueId: string; readonly asOf?: Date },
+): Promise<{ readonly expiredCount: number }> {
+  const cutoff = params.asOf ?? new Date();
+  return withLeagueTxLock(
+    prisma,
+    params.leagueId,
+    async (tx) => {
+      const updated = await tx.transferOffer.updateMany({
+        where: {
+          leagueId: params.leagueId,
+          status: 'PENDING',
+          expiresAt: { lte: cutoff },
+        },
+        data: {
+          status: 'EXPIRED',
+          respondedAt: cutoff,
+          responseNote: 'Offer expired automatically after deadline.',
+        },
+      });
+      return { expiredCount: updated.count };
+    },
+    { timeout: 15_000, maxWait: 5_000 },
+  );
+}
+
 /**
  * Simula todos los partidos pendientes de una jornada completa de una liga,
  * actualiza FantasyScores, Standings, avanza el reloj/ronda y prepara las
@@ -799,152 +1090,57 @@ export async function simulateRoundForLeague(
     readonly simulatedAt?: Date;
   },
 ): Promise<SimulateRoundResult> {
-  return prisma.$transaction(
-    async (tx) => {
-      const season = await tx.season.findFirst({
-        where: { leagueId: params.leagueId, status: 'ACTIVE' },
-        orderBy: { seasonNumber: 'desc' },
-      });
-      if (!season) {
-        throw new Error(`No hay temporada activa para la liga ${params.leagueId}`);
-      }
+  return withLeagueTxLock(prisma, params.leagueId, async (tx) => {
+    const season = await tx.season.findFirst({
+      where: { leagueId: params.leagueId, status: 'ACTIVE' },
+      orderBy: { seasonNumber: 'desc' },
+    });
+    if (!season) {
+      throw new Error(`No hay temporada activa para la liga ${params.leagueId}`);
+    }
 
-      const matches = await tx.match.findMany({
-        where: {
-          leagueId: params.leagueId,
-          seasonId: season.id,
-          roundNumber: params.roundNumber,
-        },
-        orderBy: { scheduledAt: 'asc' },
-      });
-
-      let matchesSimulated = 0;
-      let latestMatchAt = season.startedAt;
-
-      for (const m of matches) {
-        if (m.scheduledAt > latestMatchAt) {
-          latestMatchAt = m.scheduledAt;
-        }
-        const simRes = await simulateSingleMatchInTx(tx, {
-          leagueId: params.leagueId,
-          matchId: m.id,
-          ...(params.simulatedAt ? { simulatedAt: params.simulatedAt } : {}),
-        });
-        if (!simRes.alreadyCompleted) {
-          matchesSimulated += 1;
-        }
-      }
-
-      await recalculateRoundStandingsInTx(tx, {
+    const matches = await tx.match.findMany({
+      where: {
         leagueId: params.leagueId,
         seasonId: season.id,
         roundNumber: params.roundNumber,
-      });
+      },
+      orderBy: { scheduledAt: 'asc' },
+    });
 
-      const nextRoundNumber = Math.max(season.currentRoundNumber, params.roundNumber);
-      await tx.season.update({
-        where: { id: season.id },
-        data: { currentRoundNumber: nextRoundNumber },
-      });
+    let matchesSimulated = 0;
+    let latestMatchAt = season.startedAt;
 
-      const league = await tx.league.findUnique({ where: { id: params.leagueId } });
-      if (league && latestMatchAt > league.gameClockAt) {
-        await tx.league.update({
-          where: { id: league.id },
-          data: { gameClockAt: latestMatchAt },
-        });
+    for (const m of matches) {
+      if (m.scheduledAt > latestMatchAt) {
+        latestMatchAt = m.scheduledAt;
       }
-
-      // Bloqueamos la alineación de la jornada simulada y copiamos titulares a round+1
-      await tx.lineup.updateMany({
-        where: {
-          leagueId: params.leagueId,
-          seasonId: season.id,
-          roundNumber: params.roundNumber,
-        },
-        data: { isLocked: true },
-      });
-
-      if (params.roundNumber < season.totalRounds) {
-        const nextRound = params.roundNumber + 1;
-        const currentLineups = await tx.lineup.findMany({
-          where: {
-            leagueId: params.leagueId,
-            seasonId: season.id,
-            roundNumber: params.roundNumber,
-          },
-        });
-        for (const l of currentLineups) {
-          const existsNext = await tx.lineup.findUnique({
-            where: {
-              leagueId_seasonId_leagueTeamId_roundNumber: {
-                leagueId: params.leagueId,
-                seasonId: season.id,
-                leagueTeamId: l.leagueTeamId,
-                roundNumber: nextRound,
-              },
-            },
-          });
-          if (!existsNext) {
-            await tx.lineup.create({
-              data: {
-                leagueId: params.leagueId,
-                seasonId: season.id,
-                leagueTeamId: l.leagueTeamId,
-                roundNumber: nextRound,
-                pgPlayerId: l.pgPlayerId,
-                sgPlayerId: l.sgPlayerId,
-                sfPlayerId: l.sfPlayerId,
-                pfPlayerId: l.pfPlayerId,
-                cPlayerId: l.cPlayerId,
-                isLocked: false,
-              },
-            });
-          }
-        }
-      }
-
-      if (matchesSimulated > 0) {
-        await repriceLeagueMarketInTx(tx, {
-          leagueId: params.leagueId,
-          reason: `Post-jornada ${String(params.roundNumber)}`,
-        });
-        await runAutonomousCpuTransfersInTx(tx, {
-          leagueId: params.leagueId,
-          seasonId: season.id,
-          roundNumber: params.roundNumber,
-        });
-      }
-
-      let seasonCompleted = false;
-      if (nextRoundNumber >= season.totalRounds) {
-        const remainingScheduled = await tx.match.count({
-          where: {
-            leagueId: params.leagueId,
-            seasonId: season.id,
-            status: 'SCHEDULED',
-          },
-        });
-        if (remainingScheduled === 0) {
-          seasonCompleted = true;
-          await ageActivePlayersIfNeededInTx(tx, {
-            leagueId: params.leagueId,
-            seasonId: season.id,
-            alreadyAged: season.playersAged,
-          });
-        }
-      }
-
-      return {
+      const simRes = await simulateSingleMatchInTx(tx, {
         leagueId: params.leagueId,
-        seasonId: season.id,
-        roundNumber: params.roundNumber,
-        matchesSimulated,
-        seasonCompleted,
-      };
-    },
-    { timeout: 60000, maxWait: 15000 },
-  );
+        matchId: m.id,
+        ...(params.simulatedAt ? { simulatedAt: params.simulatedAt } : {}),
+      });
+      if (!simRes.alreadyCompleted) {
+        matchesSimulated += 1;
+      }
+    }
+
+    const completion = await finalizeRoundCompletionInTx(tx, {
+      leagueId: params.leagueId,
+      season,
+      roundNumber: params.roundNumber,
+      latestClockAt: latestMatchAt,
+      runPostRoundEconomy: matchesSimulated > 0,
+    });
+
+    return {
+      leagueId: params.leagueId,
+      seasonId: season.id,
+      roundNumber: params.roundNumber,
+      matchesSimulated,
+      seasonCompleted: completion.seasonCompleted,
+    };
+  });
 }
 
 /**
@@ -988,7 +1184,7 @@ export async function repriceLeagueMarketInTx(
       avgFantasyPoints:
         p.seasonGamesPlayed > 0
           ? p.seasonFantasyPoints / p.seasonGamesPlayed
-          : Math.max(2, Math.pow(Math.max(0.5, p.priceMillions) / 2.38, 1 / 1.72) * 10),
+          : Math.max(2, Math.pow(Math.max(1.5, p.priceMillions) / 7.14, 1 / 1.72) * 10),
       lastRoundFantasyPoints: lastFpByPlayer.get(p.id) ?? null,
     })),
     config: {
@@ -1044,7 +1240,7 @@ export async function repriceLeagueMarket(
   prisma: PrismaClient,
   params: { readonly leagueId: string; readonly reason: string },
 ): Promise<{ readonly updatedPlayersCount: number }> {
-  return prisma.$transaction((tx) => repriceLeagueMarketInTx(tx, params), {
+  return withLeagueTxLock(prisma, params.leagueId, (tx) => repriceLeagueMarketInTx(tx, params), {
     timeout: 30000,
     maxWait: 10000,
   });
@@ -1230,15 +1426,19 @@ export async function advanceSeasonForLeague(
   params: {
     readonly leagueId: string;
     readonly resetConfig?: SeasonResetConfig;
+    readonly expectedSeasonId?: string;
   },
 ): Promise<{
   readonly previousSeasonId: string;
   readonly newSeasonId: string;
   readonly newSeasonNumber: number;
+  readonly alreadyAdvanced?: boolean;
 }> {
   const config = params.resetConfig ?? PROVISIONAL_GAME_CONFIG.seasonReset;
 
-  return prisma.$transaction(
+  return withLeagueTxLock(
+    prisma,
+    params.leagueId,
     async (tx) => {
       const league = await tx.league.findUnique({ where: { id: params.leagueId } });
       if (!league) {
@@ -1251,6 +1451,15 @@ export async function advanceSeasonForLeague(
       });
       if (!currentSeason) {
         throw new Error(`No hay temporada activa en la liga ${params.leagueId}`);
+      }
+
+      if (params.expectedSeasonId && currentSeason.id !== params.expectedSeasonId) {
+        return {
+          previousSeasonId: params.expectedSeasonId,
+          newSeasonId: currentSeason.id,
+          newSeasonNumber: currentSeason.seasonNumber,
+          alreadyAdvanced: true,
+        };
       }
 
       await ageActivePlayersIfNeededInTx(tx, {
@@ -1286,7 +1495,17 @@ export async function advanceSeasonForLeague(
           : currentSeason.calendarYear;
       const nextDaysInMonth = getDaysInCalendarMonth(nextYear, nextMonth);
       const nextSeasonNumber = currentSeason.seasonNumber + 1;
-      const newClock = new Date(Date.UTC(nextYear, nextMonth - 1, 1, 7, 30, 0, 0));
+      const timeZone = resolveLeagueTimeZone();
+      const newClock = new Date(
+        resolveZonedDateIso({
+          year: nextYear,
+          month: nextMonth,
+          dayOfMonth: 1,
+          hour: 7,
+          minute: 30,
+          timeZone,
+        }),
+      );
 
       const newSeason = await tx.season.create({
         data: {
@@ -1361,7 +1580,7 @@ export async function advanceSeasonForLeague(
         .map((team) => {
           const prev = prevStandings.find((s) => s.leagueTeamId === team.id);
           const recordLabel = prev
-            ? `#${String(prev.rank)} (${String(prev.wins)}-${String(prev.losses)}, ${prev.fantasyPoints.toFixed(1)} DP)`
+            ? `#${String(prev.rank)} (${String(prev.wins)}-${String(prev.losses)}, ${formatCleanDecimal(prev.fantasyPoints)} DP)`
             : 'N/A';
           return {
             leagueId: params.leagueId,
@@ -1429,6 +1648,7 @@ export async function advanceSeasonForLeague(
         month: nextMonth,
         startHour: LEAGUE_RULES.dailyWindowStartHour,
         endHour: LEAGUE_RULES.dailyWindowEndHour,
+        timeZone,
       });
 
       await tx.match.createMany({
@@ -1498,6 +1718,126 @@ export interface SyncClockResult {
   readonly currentRoundNumber: number;
   readonly deletedFutureSeasonsCount: number;
   readonly revertedMatchesCount: number;
+  readonly clearedTransferLocksCount: number;
+}
+
+export async function applyEquitativeScheduleToSeasonMatchesInTx(
+  tx: Prisma.TransactionClient,
+  params: {
+    readonly leagueId: string;
+    readonly seasonId: string;
+    readonly calendarYear: number;
+    readonly calendarMonth: number;
+    readonly timeZone: string;
+    readonly preserveStartedRounds: boolean;
+    readonly onlyFutureRoundsAfter?: Date;
+  },
+): Promise<number> {
+  const slots = distributeMatchSlotsAcrossMonth({
+    year: params.calendarYear,
+    month: params.calendarMonth,
+    startHour: LEAGUE_RULES.dailyWindowStartHour,
+    endHour: LEAGUE_RULES.dailyWindowEndHour,
+    matchesPerRound: LEAGUE_RULES.matchesPerRound,
+    timeZone: params.timeZone,
+  });
+  const slotDateByKey = new Map<string, Date>(
+    slots.map((s) => [
+      `${String(s.roundNumber)}:${String(s.matchIndexInRound)}`,
+      new Date(s.scheduledAtIso),
+    ]),
+  );
+
+  const seasonMatches = await tx.match.findMany({
+    where: { leagueId: params.leagueId, seasonId: params.seasonId },
+    orderBy: [{ roundNumber: 'asc' }, { scheduledAt: 'asc' }, { id: 'asc' }],
+  });
+
+  const matchesByRound = new Map<number, (typeof seasonMatches)[number][]>();
+  for (const m of seasonMatches) {
+    const list = matchesByRound.get(m.roundNumber) ?? [];
+    list.push(m);
+    matchesByRound.set(m.roundNumber, list);
+  }
+
+  let updatedCount = 0;
+  const cutoff = params.onlyFutureRoundsAfter;
+  for (const [roundNumber, roundMatches] of matchesByRound.entries()) {
+    if (params.preserveStartedRounds && roundMatches.some((m) => m.status !== 'SCHEDULED')) {
+      continue;
+    }
+    const firstSlotDate = slotDateByKey.get(`${String(roundNumber)}:0`);
+    if (
+      cutoff &&
+      (roundMatches.some((m) => m.scheduledAt <= cutoff) ||
+        (firstSlotDate !== undefined && firstSlotDate <= cutoff))
+    ) {
+      continue;
+    }
+
+    for (let idx = 0; idx < roundMatches.length; idx += 1) {
+      const m = roundMatches[idx];
+      const targetDate = slotDateByKey.get(`${String(roundNumber)}:${String(idx)}`);
+      if (!m || !targetDate) {
+        continue;
+      }
+      if (Math.abs(m.scheduledAt.getTime() - targetDate.getTime()) > 1_000) {
+        await tx.match.update({
+          where: { id: m.id },
+          data: { scheduledAt: targetDate },
+        });
+        updatedCount += 1;
+      }
+    }
+  }
+
+  return updatedCount;
+}
+
+/**
+ * Reprograma de forma idempotente los partidos futuros no iniciados de todas las temporadas activas
+ * para repartir equitativamente sus horarios entre 08:00 y 20:00 (hora del servidor).
+ */
+export async function rescheduleUpcomingLeagueMatches(
+  prisma: PrismaClient,
+  params: { readonly leagueId?: string; readonly asOf?: Date } = {},
+): Promise<{ readonly updatedMatchesCount: number }> {
+  const timeZone = resolveLeagueTimeZone();
+  const asOf = params.asOf ?? new Date();
+  const activeLeagues = await prisma.league.findMany({
+    where: {
+      status: 'ACTIVE',
+      ...(params.leagueId ? { id: params.leagueId } : {}),
+    },
+    include: {
+      seasons: {
+        where: { status: 'ACTIVE' },
+        orderBy: { seasonNumber: 'desc' },
+        take: 1,
+      },
+    },
+  });
+
+  let updatedMatchesCount = 0;
+  for (const league of activeLeagues) {
+    const activeSeason = league.seasons[0];
+    if (!activeSeason) {
+      continue;
+    }
+    updatedMatchesCount += await withLeagueTxLock(prisma, league.id, (tx) =>
+      applyEquitativeScheduleToSeasonMatchesInTx(tx, {
+        leagueId: league.id,
+        seasonId: activeSeason.id,
+        calendarYear: activeSeason.calendarYear,
+        calendarMonth: activeSeason.calendarMonth,
+        timeZone,
+        preserveStartedRounds: true,
+        onlyFutureRoundsAfter: asOf,
+      }),
+    );
+  }
+
+  return { updatedMatchesCount };
 }
 
 /**
@@ -1513,11 +1853,23 @@ export async function syncLeagueClockToRealTime(
   },
 ): Promise<SyncClockResult> {
   const now = params.now ?? new Date();
-  const nowYear = now.getUTCFullYear();
-  const nowMonth = now.getUTCMonth() + 1;
-  const nowMonthStart = new Date(Date.UTC(nowYear, nowMonth - 1, 1, 7, 30, 0, 0));
+  const timeZone = resolveLeagueTimeZone();
+  const nowYear = now.getFullYear();
+  const nowMonth = now.getMonth() + 1;
+  const nowMonthStart = new Date(
+    resolveZonedDateIso({
+      year: nowYear,
+      month: nowMonth,
+      dayOfMonth: 1,
+      hour: 7,
+      minute: 30,
+      timeZone,
+    }),
+  );
 
-  return prisma.$transaction(
+  return withLeagueTxLock(
+    prisma,
+    params.leagueId,
     async (tx) => {
       const league = await tx.league.findUnique({ where: { id: params.leagueId } });
       if (!league) {
@@ -1700,29 +2052,14 @@ export async function syncLeagueClockToRealTime(
           },
         });
 
-        const roundCalendar = distributeRoundsAcrossMonth({
-          year: nowYear,
-          month: nowMonth,
-          startHour: LEAGUE_RULES.dailyWindowStartHour,
-          endHour: LEAGUE_RULES.dailyWindowEndHour,
+        await applyEquitativeScheduleToSeasonMatchesInTx(tx, {
+          leagueId: params.leagueId,
+          seasonId: targetSeason.id,
+          calendarYear: nowYear,
+          calendarMonth: nowMonth,
+          timeZone,
+          preserveStartedRounds: false,
         });
-        const roundIsoByNumber = new Map(
-          roundCalendar.map((r) => [r.roundNumber, Date.parse(r.scheduledAtIso)]),
-        );
-        const seasonMatches = await tx.match.findMany({
-          where: { leagueId: params.leagueId, seasonId: targetSeason.id },
-          orderBy: [{ roundNumber: 'asc' }, { id: 'asc' }],
-        });
-        const seenInRound = new Map<number, number>();
-        for (const m of seasonMatches) {
-          const baseMs = roundIsoByNumber.get(m.roundNumber) ?? now.getTime();
-          const idx = seenInRound.get(m.roundNumber) ?? 0;
-          seenInRound.set(m.roundNumber, idx + 1);
-          await tx.match.update({
-            where: { id: m.id },
-            data: { scheduledAt: new Date(baseMs + idx * 120_000) },
-          });
-        }
       } else {
         await tx.season.update({
           where: { id: targetSeason.id },
@@ -1731,6 +2068,15 @@ export async function syncLeagueClockToRealTime(
             endedAt: null,
             playersAged: false,
           },
+        });
+        await applyEquitativeScheduleToSeasonMatchesInTx(tx, {
+          leagueId: params.leagueId,
+          seasonId: targetSeason.id,
+          calendarYear: targetSeason.calendarYear,
+          calendarMonth: targetSeason.calendarMonth,
+          timeZone,
+          preserveStartedRounds: true,
+          onlyFutureRoundsAfter: now,
         });
       }
 
@@ -2084,6 +2430,8 @@ export async function syncLeagueClockToRealTime(
         data: { rejectedGameClockAt: now },
       });
 
+      const clearedLocks = await cleanupInvalidTransferLocksInTx(tx, params.leagueId);
+
       await tx.simulationJob.deleteMany({
         where: {
           leagueId: params.leagueId,
@@ -2107,8 +2455,637 @@ export async function syncLeagueClockToRealTime(
         currentRoundNumber: highestCompletedRound,
         deletedFutureSeasonsCount: futureSeasons.length,
         revertedMatchesCount: revertedMatchIds.length,
+        clearedTransferLocksCount:
+          clearedLocks.clearedPlayerLocksCount + clearedLocks.clearedRejectedCooldownsCount,
       };
     },
     { timeout: 60_000, maxWait: 15_000 },
   );
+}
+
+function hasNbaScoringConfigJson(raw: unknown): boolean {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return false;
+  }
+  const obj = raw as Record<string, unknown>;
+  return typeof obj['ptsDivisor'] === 'number' && Number.isFinite(obj['ptsDivisor']);
+}
+
+/**
+ * Elimina bloqueos de traspaso incoherentes o caducados (por ejemplo, tras revertir
+ * temporadas o jornadas futuras mediante sincronización del reloj).
+ */
+export async function cleanupInvalidTransferLocksInTx(
+  tx: Prisma.TransactionClient,
+  leagueId: string,
+): Promise<{
+  readonly clearedPlayerLocksCount: number;
+  readonly clearedRejectedCooldownsCount: number;
+}> {
+  const acquiredLockMatches = PROVISIONAL_GAME_CONFIG.transfers.acquiredPlayerLockMatches;
+  const rejectionCooldownMatches = PROVISIONAL_GAME_CONFIG.transfers.rejectionCooldownMatches;
+
+  const [finalMatches, lockedPlayers, rejectedOffers] = await Promise.all([
+    tx.match.findMany({
+      where: { leagueId, status: 'FINAL' },
+      select: { homeTeamId: true, awayTeamId: true },
+    }),
+    tx.playerInstance.findMany({
+      where: { leagueId, tradeLockUntilTeamMatches: { not: null } },
+      select: {
+        id: true,
+        currentTeamId: true,
+        tradeLockTeamId: true,
+        tradeLockUntilTeamMatches: true,
+        isRetired: true,
+      },
+    }),
+    tx.transferOffer.findMany({
+      where: {
+        leagueId,
+        status: 'REJECTED',
+        rejectedAtTeamMatches: { not: null },
+      },
+      select: {
+        id: true,
+        proposingTeamId: true,
+        rejectedAtTeamMatches: true,
+      },
+    }),
+  ]);
+
+  const completedByTeam = new Map<string, number>();
+  for (const m of finalMatches) {
+    completedByTeam.set(m.homeTeamId, (completedByTeam.get(m.homeTeamId) ?? 0) + 1);
+    completedByTeam.set(m.awayTeamId, (completedByTeam.get(m.awayTeamId) ?? 0) + 1);
+  }
+
+  const playerIdsToUnlock: string[] = [];
+  for (const p of lockedPlayers) {
+    if (p.tradeLockUntilTeamMatches === null) {
+      continue;
+    }
+    const ownerMatches = completedByTeam.get(p.currentTeamId) ?? 0;
+    const invalidOwner = p.isRetired || !p.tradeLockTeamId || p.tradeLockTeamId !== p.currentTeamId;
+    const remaining = p.tradeLockUntilTeamMatches - ownerMatches;
+    if (invalidOwner || remaining <= 0 || remaining > acquiredLockMatches) {
+      playerIdsToUnlock.push(p.id);
+    }
+  }
+
+  if (playerIdsToUnlock.length > 0) {
+    await tx.playerInstance.updateMany({
+      where: { leagueId, id: { in: playerIdsToUnlock } },
+      data: { tradeLockTeamId: null, tradeLockUntilTeamMatches: null },
+    });
+  }
+
+  const offerIdsToClear: string[] = [];
+  for (const rej of rejectedOffers) {
+    if (rej.rejectedAtTeamMatches === null) {
+      continue;
+    }
+    const teamMatches = completedByTeam.get(rej.proposingTeamId) ?? 0;
+    const staleFromFutureRevert = rej.rejectedAtTeamMatches > teamMatches;
+    const expired = rej.rejectedAtTeamMatches + rejectionCooldownMatches <= teamMatches;
+    if (staleFromFutureRevert || expired) {
+      offerIdsToClear.push(rej.id);
+    }
+  }
+
+  if (offerIdsToClear.length > 0) {
+    await tx.transferOffer.updateMany({
+      where: { leagueId, id: { in: offerIdsToClear } },
+      data: { rejectedAtTeamMatches: null },
+    });
+  }
+
+  return {
+    clearedPlayerLocksCount: playerIdsToUnlock.length,
+    clearedRejectedCooldownsCount: offerIdsToClear.length,
+  };
+}
+
+export interface UpgradeExistingLeaguesResult {
+  readonly processedLeaguesCount: number;
+  readonly recalculatedStatsCount: number;
+  readonly scaledMarketLeaguesCount: number;
+  readonly unlockedPlayersCount: number;
+  readonly clearedRejectedCooldownsCount: number;
+}
+
+/**
+ * Actualiza de forma idempotente todas las ligas existentes para:
+ * 1) Desbloquear jugadores/ofertas con bloqueos incoherentes tras cambios de calendario;
+ * 2) Migrar ligas heredadas a las reglas NBA oficiales y recalcular Dream Points ya jugados;
+ * 3) Escalar el mercado existente x3 (precios, deltas, historial, presupuestos base y
+ *    premios x100.000) una única vez por liga (`marketScale < 3`).
+ */
+export async function recalculateAndUpgradeExistingLeagues(
+  prisma: PrismaClient,
+  options: { readonly leagueId?: string; readonly forceRecalculateScores?: boolean } = {},
+): Promise<UpgradeExistingLeaguesResult> {
+  const leagues = await prisma.league.findMany({
+    ...(options.leagueId ? { where: { id: options.leagueId } } : {}),
+    select: { id: true },
+  });
+
+  let processedLeaguesCount = 0;
+  let recalculatedStatsCount = 0;
+  let scaledMarketLeaguesCount = 0;
+  let unlockedPlayersCount = 0;
+  let clearedRejectedCooldownsCount = 0;
+
+  for (const { id: leagueId } of leagues) {
+    await withLeagueTxLock(
+      prisma,
+      leagueId,
+      async (tx) => {
+        const league = await tx.league.findUnique({ where: { id: leagueId } });
+        if (!league) {
+          return;
+        }
+        processedLeaguesCount += 1;
+
+        const lockClean = await cleanupInvalidTransferLocksInTx(tx, leagueId);
+        unlockedPlayersCount += lockClean.clearedPlayerLocksCount;
+        clearedRejectedCooldownsCount += lockClean.clearedRejectedCooldownsCount;
+
+        const needsScoringUpgrade =
+          Boolean(options.forceRecalculateScores) ||
+          !hasNbaScoringConfigJson(league.scoringConfigJson) ||
+          league.marketScale < 3;
+        const needsMarketScaleX3 = league.marketScale < 3;
+
+        if (!needsScoringUpgrade && !needsMarketScaleX3) {
+          return;
+        }
+
+        const weights = PROVISIONAL_GAME_CONFIG.scoringWeights;
+        if (!hasNbaScoringConfigJson(league.scoringConfigJson)) {
+          await tx.league.update({
+            where: { id: leagueId },
+            data: { scoringConfigJson: weights },
+          });
+        }
+
+        const [seasons, teams, allPlayers, lineups, finalMatches, stats] = await Promise.all([
+          tx.season.findMany({ where: { leagueId }, orderBy: { seasonNumber: 'asc' } }),
+          tx.leagueTeam.findMany({ where: { leagueId }, orderBy: { code: 'asc' } }),
+          tx.playerInstance.findMany({ where: { leagueId, isRetired: false } }),
+          tx.lineup.findMany({
+            where: { leagueId },
+            orderBy: [{ seasonId: 'asc' }, { roundNumber: 'desc' }],
+          }),
+          tx.match.findMany({
+            where: { leagueId, status: 'FINAL' },
+            orderBy: [{ seasonId: 'asc' }, { roundNumber: 'asc' }],
+          }),
+          tx.playerMatchStat.findMany({ where: { leagueId } }),
+        ]);
+
+        // 1) Recalcular td y fantasyPoints en cada PlayerMatchStat con la regla NBA actual
+        const statUpdateIds: string[] = [];
+        const statUpdateTds: number[] = [];
+        const statUpdateFps: number[] = [];
+        const updatedFpByStatId = new Map<string, number>();
+
+        for (const stat of stats) {
+          const breakdown = calculatePlayerDreamPointsBreakdown(
+            {
+              pts: stat.pts,
+              reb: stat.reb,
+              ast: stat.ast,
+              stl: stat.stl,
+              blk: stat.blk,
+              tov: stat.tov,
+              pf: stat.pf,
+              tf: stat.tf,
+              ft1: stat.ft1,
+              ft2: stat.ft2,
+              minutes: stat.minutes,
+            },
+            weights,
+          );
+          updatedFpByStatId.set(stat.id, breakdown.total);
+          if (
+            stat.td !== breakdown.tdCount ||
+            Math.abs(stat.fantasyPoints - breakdown.total) > 0.001
+          ) {
+            statUpdateIds.push(stat.id);
+            statUpdateTds.push(breakdown.tdCount);
+            statUpdateFps.push(breakdown.total);
+          }
+        }
+
+        if (statUpdateIds.length > 0) {
+          const chunkSize = 2000;
+          for (let offset = 0; offset < statUpdateIds.length; offset += chunkSize) {
+            const idsSlice = statUpdateIds.slice(offset, offset + chunkSize);
+            const tdsSlice = statUpdateTds.slice(offset, offset + chunkSize);
+            const fpsSlice = statUpdateFps.slice(offset, offset + chunkSize);
+            await tx.$executeRaw`
+              UPDATE "player_match_stats" AS pms
+              SET "td" = v.td, "fantasy_points" = v.fp
+              FROM unnest(
+                ${idsSlice}::text[],
+                ${tdsSlice}::integer[],
+                ${fpsSlice}::double precision[]
+              ) AS v(id, td, fp)
+              WHERE pms."id" = v.id
+            `;
+          }
+          recalculatedStatsCount += statUpdateIds.length;
+        }
+
+        const playerNameById = new Map(allPlayers.map((p) => [p.id, p.name]));
+        const rosterByTeam = new Map<string, (typeof allPlayers)[number][]>();
+        for (const p of allPlayers) {
+          const arr = rosterByTeam.get(p.currentTeamId) ?? [];
+          arr.push(p);
+          rosterByTeam.set(p.currentTeamId, arr);
+        }
+
+        const lineupsBySeason = new Map<string, (typeof lineups)[number][]>();
+        for (const l of lineups) {
+          const arr = lineupsBySeason.get(l.seasonId) ?? [];
+          arr.push(l);
+          lineupsBySeason.set(l.seasonId, arr);
+        }
+
+        const statsBySeasonRoundPlayer = new Map<string, (typeof stats)[number]>();
+        const playedRoundsBySeason = new Map<string, Set<number>>();
+        for (const s of stats) {
+          statsBySeasonRoundPlayer.set(
+            `${s.seasonId}:${String(s.roundNumber)}:${s.playerInstanceId}`,
+            s,
+          );
+          const set = playedRoundsBySeason.get(s.seasonId) ?? new Set<number>();
+          set.add(s.roundNumber);
+          playedRoundsBySeason.set(s.seasonId, set);
+        }
+
+        // También aseguramos FantasyScore por cada jornada con partidos FINAL
+        for (const m of finalMatches) {
+          const set = playedRoundsBySeason.get(m.seasonId) ?? new Set<number>();
+          set.add(m.roundNumber);
+          playedRoundsBySeason.set(m.seasonId, set);
+        }
+
+        const roundFpBySeasonRoundTeam = new Map<string, number>();
+        const slotPositions: readonly Position[] = ['PG', 'SG', 'SF', 'PF', 'C'];
+        const activeSeason = seasons[seasons.length - 1];
+
+        for (const season of seasons) {
+          const rounds = [...(playedRoundsBySeason.get(season.id) ?? new Set<number>())].sort(
+            (a, b) => a - b,
+          );
+          const seasonLineups = lineupsBySeason.get(season.id) ?? [];
+
+          for (const roundNumber of rounds) {
+            const effectiveLineupByTeam = new Map<string, (typeof seasonLineups)[number]>();
+            for (const l of seasonLineups) {
+              if (l.roundNumber <= roundNumber && !effectiveLineupByTeam.has(l.leagueTeamId)) {
+                effectiveLineupByTeam.set(l.leagueTeamId, l);
+              }
+            }
+
+            for (const team of teams) {
+              const saved = effectiveLineupByTeam.get(team.id);
+              const roster = rosterByTeam.get(team.id) ?? [];
+              let starterIds: Record<Position, string | null>;
+              if (saved) {
+                starterIds = {
+                  PG: saved.pgPlayerId,
+                  SG: saved.sgPlayerId,
+                  SF: saved.sfPlayerId,
+                  PF: saved.pfPlayerId,
+                  C: saved.cPlayerId,
+                };
+              } else if (roster.length >= 5) {
+                const picked = pickDefaultLineupForTeam(
+                  roster.map((p) => ({
+                    id: p.id,
+                    position: p.position,
+                    overallRating: p.overallRating,
+                    status: p.status,
+                  })),
+                );
+                starterIds = {
+                  PG: picked.pgPlayerId,
+                  SG: picked.sgPlayerId,
+                  SF: picked.sfPlayerId,
+                  PF: picked.pfPlayerId,
+                  C: picked.cPlayerId,
+                };
+              } else {
+                starterIds = { PG: null, SG: null, SF: null, PF: null, C: null };
+              }
+
+              let teamRoundFp = 0;
+              const breakdown: Record<
+                string,
+                { playerId: string | null; playerName: string | null; fp: number }
+              > = {};
+              for (const pos of slotPositions) {
+                const pid = starterIds[pos];
+                const stat = pid
+                  ? statsBySeasonRoundPlayer.get(`${season.id}:${String(roundNumber)}:${pid}`)
+                  : undefined;
+                const fp = stat ? (updatedFpByStatId.get(stat.id) ?? stat.fantasyPoints) : 0;
+                teamRoundFp += fp;
+                breakdown[pos] = {
+                  playerId: pid,
+                  playerName: pid ? (playerNameById.get(pid) ?? null) : null,
+                  fp: Math.round(fp * 10) / 10,
+                };
+              }
+
+              teamRoundFp = Math.round(teamRoundFp * 10) / 10;
+              roundFpBySeasonRoundTeam.set(
+                `${season.id}:${String(roundNumber)}:${team.id}`,
+                teamRoundFp,
+              );
+
+              await tx.fantasyScore.upsert({
+                where: {
+                  leagueId_seasonId_roundNumber_leagueTeamId: {
+                    leagueId,
+                    seasonId: season.id,
+                    roundNumber,
+                    leagueTeamId: team.id,
+                  },
+                },
+                update: {
+                  totalFp: teamRoundFp,
+                  breakdownJson: breakdown,
+                  calculatedAt: new Date(),
+                },
+                create: {
+                  leagueId,
+                  seasonId: season.id,
+                  roundNumber,
+                  leagueTeamId: team.id,
+                  totalFp: teamRoundFp,
+                  breakdownJson: breakdown,
+                },
+              });
+            }
+          }
+
+          // Reagregar clasificación de esta temporada
+          const seasonFinalMatches = finalMatches.filter((m) => m.seasonId === season.id);
+          const winsByTeam = new Map<string, number>();
+          const lossesByTeam = new Map<string, number>();
+          const resultsByTeam = new Map<string, ('W' | 'L')[]>();
+          for (const m of seasonFinalMatches) {
+            if (m.homeScore === null || m.awayScore === null) {
+              continue;
+            }
+            const homeWon = m.homeScore > m.awayScore;
+            winsByTeam.set(m.homeTeamId, (winsByTeam.get(m.homeTeamId) ?? 0) + (homeWon ? 1 : 0));
+            lossesByTeam.set(
+              m.homeTeamId,
+              (lossesByTeam.get(m.homeTeamId) ?? 0) + (homeWon ? 0 : 1),
+            );
+            winsByTeam.set(m.awayTeamId, (winsByTeam.get(m.awayTeamId) ?? 0) + (homeWon ? 0 : 1));
+            lossesByTeam.set(
+              m.awayTeamId,
+              (lossesByTeam.get(m.awayTeamId) ?? 0) + (homeWon ? 1 : 0),
+            );
+            const h = resultsByTeam.get(m.homeTeamId) ?? [];
+            h.push(homeWon ? 'W' : 'L');
+            resultsByTeam.set(m.homeTeamId, h.slice(-5));
+            const a = resultsByTeam.get(m.awayTeamId) ?? [];
+            a.push(homeWon ? 'L' : 'W');
+            resultsByTeam.set(m.awayTeamId, a.slice(-5));
+          }
+
+          const rankedSeason = teams
+            .map((team) => {
+              let totalFp = 0;
+              let lastRoundFp = 0;
+              for (const r of rounds) {
+                const v = roundFpBySeasonRoundTeam.get(`${season.id}:${String(r)}:${team.id}`) ?? 0;
+                totalFp += v;
+                lastRoundFp = v;
+              }
+              totalFp = Math.round(totalFp * 10) / 10;
+              lastRoundFp = Math.round(lastRoundFp * 10) / 10;
+              const avgFp = rounds.length > 0 ? Math.round((totalFp / rounds.length) * 10) / 10 : 0;
+              const wins = winsByTeam.get(team.id) ?? 0;
+              const losses = lossesByTeam.get(team.id) ?? 0;
+              const lastFive = resultsByTeam.get(team.id) ?? [];
+              return { team, totalFp, lastRoundFp, avgFp, wins, losses, lastFive };
+            })
+            .sort((a, b) => {
+              if (b.totalFp !== a.totalFp) return b.totalFp - a.totalFp;
+              if (b.wins !== a.wins) return b.wins - a.wins;
+              return a.team.code.localeCompare(b.team.code);
+            });
+
+          const isCurrentActiveSeason = activeSeason?.id === season.id;
+          for (let idx = 0; idx < rankedSeason.length; idx += 1) {
+            const entry = rankedSeason[idx];
+            if (!entry) {
+              continue;
+            }
+            const rank = idx + 1;
+            await tx.standing.upsert({
+              where: {
+                leagueId_seasonId_leagueTeamId: {
+                  leagueId,
+                  seasonId: season.id,
+                  leagueTeamId: entry.team.id,
+                },
+              },
+              update: {
+                rank,
+                fantasyPoints: entry.totalFp,
+                lastRoundFp: entry.lastRoundFp,
+                avgFp: entry.avgFp,
+                wins: entry.wins,
+                losses: entry.losses,
+                lastFiveResults: [...entry.lastFive],
+              },
+              create: {
+                leagueId,
+                seasonId: season.id,
+                leagueTeamId: entry.team.id,
+                rank,
+                fantasyPoints: entry.totalFp,
+                lastRoundFp: entry.lastRoundFp,
+                avgFp: entry.avgFp,
+                wins: entry.wins,
+                losses: entry.losses,
+                lastFiveResults: [...entry.lastFive],
+              },
+            });
+
+            if (isCurrentActiveSeason) {
+              await tx.leagueTeam.update({
+                where: { id: entry.team.id },
+                data: {
+                  totalFantasyPoints: entry.totalFp,
+                  wins: entry.wins,
+                  losses: entry.losses,
+                  rank,
+                },
+              });
+            }
+          }
+        }
+
+        // Recalcular acumulados individuales de la temporada activa
+        if (activeSeason) {
+          const activeStats = stats.filter((s) => s.seasonId === activeSeason.id);
+          const aggByPlayer = new Map<
+            string,
+            { gp: number; fp: number; pts: number; reb: number; ast: number }
+          >();
+          for (const s of activeStats) {
+            const fp = updatedFpByStatId.get(s.id) ?? s.fantasyPoints;
+            const cur = aggByPlayer.get(s.playerInstanceId) ?? {
+              gp: 0,
+              fp: 0,
+              pts: 0,
+              reb: 0,
+              ast: 0,
+            };
+            cur.gp += 1;
+            cur.fp += fp;
+            cur.pts += s.pts;
+            cur.reb += s.reb;
+            cur.ast += s.ast;
+            aggByPlayer.set(s.playerInstanceId, cur);
+          }
+          for (const player of allPlayers) {
+            const agg = aggByPlayer.get(player.id);
+            await tx.playerInstance.update({
+              where: { id: player.id },
+              data: {
+                seasonGamesPlayed: agg?.gp ?? 0,
+                seasonFantasyPoints: agg ? Number(agg.fp.toFixed(1)) : 0,
+                seasonPtsAvg: agg && agg.gp > 0 ? Number((agg.pts / agg.gp).toFixed(1)) : 0,
+                seasonRebAvg: agg && agg.gp > 0 ? Number((agg.reb / agg.gp).toFixed(1)) : 0,
+                seasonAstAvg: agg && agg.gp > 0 ? Number((agg.ast / agg.gp).toFixed(1)) : 0,
+              },
+            });
+          }
+        }
+
+        // 2) Escalar mercado x3 y actualizar recompensas históricas a DP * 100.000 una sola vez
+        if (needsMarketScaleX3) {
+          const oldRewardByTeam = new Map<string, number>();
+          const newRewardByTeam = new Map<string, number>();
+          const matchIdsToUpdate: string[] = [];
+          const matchRewardsToUpdate: number[] = [];
+
+          for (const m of finalMatches) {
+            if (m.homeScore === null || m.awayScore === null || m.homeScore === m.awayScore) {
+              continue;
+            }
+            const winnerTeamId = m.homeScore > m.awayScore ? m.homeTeamId : m.awayTeamId;
+            if (m.winRewardPaid && typeof m.winRewardMillions === 'number') {
+              oldRewardByTeam.set(
+                winnerTeamId,
+                (oldRewardByTeam.get(winnerTeamId) ?? 0) + m.winRewardMillions,
+              );
+            }
+            const winnerDp = Math.max(
+              0,
+              roundFpBySeasonRoundTeam.get(
+                `${m.seasonId}:${String(m.roundNumber)}:${winnerTeamId}`,
+              ) ?? 0,
+            );
+            const newRewardMillions =
+              Math.round(
+                winnerDp * PROVISIONAL_GAME_CONFIG.economyAndMarket.winRewardPerFantasyPoint,
+              ) / 1_000_000;
+            if (m.winRewardPaid) {
+              newRewardByTeam.set(
+                winnerTeamId,
+                (newRewardByTeam.get(winnerTeamId) ?? 0) + newRewardMillions,
+              );
+              matchIdsToUpdate.push(m.id);
+              matchRewardsToUpdate.push(newRewardMillions);
+            }
+          }
+
+          if (matchIdsToUpdate.length > 0) {
+            await tx.$executeRaw`
+              UPDATE "matches" AS m
+              SET "win_reward_millions" = v.reward
+              FROM unnest(
+                ${matchIdsToUpdate}::text[],
+                ${matchRewardsToUpdate}::double precision[]
+              ) AS v(id, reward)
+              WHERE m."id" = v.id
+            `;
+          }
+
+          for (const team of teams) {
+            const oldReward = oldRewardByTeam.get(team.id) ?? 0;
+            const newReward = newRewardByTeam.get(team.id) ?? 0;
+            const baseAndTrades = team.budgetMillions - oldReward;
+            const nextBudget = Math.max(0, Number((baseAndTrades * 3 + newReward).toFixed(2)));
+            await tx.leagueTeam.update({
+              where: { id: team.id },
+              data: { budgetMillions: nextBudget },
+            });
+          }
+
+          const minPrice = PROVISIONAL_GAME_CONFIG.economyAndMarket.minPlayerPriceMillions;
+          const maxPrice = PROVISIONAL_GAME_CONFIG.economyAndMarket.maxPlayerPriceMillions;
+
+          await tx.$executeRaw`
+            UPDATE "player_instances"
+            SET
+              "price_millions" = LEAST(${maxPrice}, GREATEST(${minPrice}, ROUND((("price_millions" * 3.0)::numeric), 1)::double precision)),
+              "price_delta_millions" = ROUND((("price_delta_millions" * 3.0)::numeric), 1)::double precision
+            WHERE "league_id" = ${leagueId}
+          `;
+
+          await tx.$executeRaw`
+            UPDATE "market_history"
+            SET
+              "price_millions" = LEAST(${maxPrice}, GREATEST(${minPrice}, ROUND((("price_millions" * 3.0)::numeric), 1)::double precision)),
+              "delta_millions" = ROUND((("delta_millions" * 3.0)::numeric), 1)::double precision
+            WHERE "league_id" = ${leagueId}
+          `;
+
+          const pendingOffers = await tx.transferOffer.findMany({
+            where: { leagueId, status: 'PENDING' },
+            select: { id: true, cashOfferedMillions: true, cashRequestedMillions: true },
+          });
+          for (const offer of pendingOffers) {
+            if (offer.cashOfferedMillions > 0 || offer.cashRequestedMillions > 0) {
+              await tx.transferOffer.update({
+                where: { id: offer.id },
+                data: {
+                  cashOfferedMillions: Number((offer.cashOfferedMillions * 3).toFixed(1)),
+                  cashRequestedMillions: Number((offer.cashRequestedMillions * 3).toFixed(1)),
+                },
+              });
+            }
+          }
+
+          await tx.league.update({
+            where: { id: leagueId },
+            data: { marketScale: 3 },
+          });
+          scaledMarketLeaguesCount += 1;
+        }
+      },
+      { timeout: 120_000, maxWait: 15_000 },
+    );
+  }
+
+  return {
+    processedLeaguesCount,
+    recalculatedStatsCount,
+    scaledMarketLeaguesCount,
+    unlockedPlayersCount,
+    clearedRejectedCooldownsCount,
+  };
 }

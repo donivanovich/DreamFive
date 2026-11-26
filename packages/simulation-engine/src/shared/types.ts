@@ -10,9 +10,19 @@ export interface EngineScoringWeights {
   readonly ast: number;
   readonly stl: number;
   readonly blk: number;
+  readonly td: number;
   readonly tov: number;
   readonly pf: number;
+  readonly tf: number;
+  readonly ft1: number;
+  readonly ft2: number;
   readonly min: number;
+  readonly ptsDivisor: number;
+  readonly rebDivisor: number;
+  readonly astDivisor: number;
+  readonly minDivisor: number;
+  readonly minMaxPoints: number;
+  readonly minMaxMinutes: number;
 }
 
 export interface EngineInjuryConfig {
@@ -60,10 +70,16 @@ export interface SimulatedPlayerBox {
   readonly ast: number;
   readonly stl: number;
   readonly blk: number;
+  readonly td: number;
   readonly tov: number;
   readonly pf: number;
+  readonly tf: number;
+  readonly ft1: number;
+  readonly ft2: number;
   readonly fantasyPoints: number;
   readonly ejected: boolean;
+  readonly disqualified: boolean;
+  readonly disqualificationReason: string | null;
   readonly injured: boolean;
   readonly nextStatus: EngineAvailability;
   readonly nextGamesOut: number;

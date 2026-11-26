@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
 import { useDream5State } from '@/hooks/use-dream5-state';
 import { useI18n } from '@/hooks/use-i18n';
-import { formatMillions } from '@/lib/formatters';
+import { formatMillions, formatStatNumber } from '@/lib/formatters';
 import { lineupApi, teamsApi } from '@/services/dream5-api';
 import { mapPlayerDtoToUi } from '@/services/mappers';
 
@@ -92,7 +92,7 @@ export function TeamsPage() {
               onChange={(e) => {
                 setSelectedTeamId(e.target.value);
               }}
-              className="h-9 max-w-full min-w-0 flex-1 rounded-md border border-border bg-surface-deep px-3 text-sm text-foreground sm:flex-initial"
+              className="h-auto min-h-9 max-w-full min-w-0 flex-1 rounded-md border border-border bg-surface-deep px-2.5 py-1.5 text-xs leading-snug text-foreground sm:h-9 sm:flex-initial sm:px-3 sm:py-0 sm:text-sm"
             >
               {(teamsQuery.data ?? []).map((team) => (
                 <option key={team.id} value={team.id}>
@@ -148,12 +148,12 @@ export function TeamsPage() {
       ) : (
         <>
           <Card>
-            <CardContent className="flex flex-wrap items-center justify-between gap-4 pt-5">
-              <div className="flex min-w-0 items-center gap-3">
-                <TeamLogo code={teamSummary.code} name={teamSummary.name} size="lg" />
+            <CardContent className="flex flex-wrap items-center justify-between gap-3 pt-3.5 sm:gap-4 sm:pt-5">
+              <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
+                <TeamLogo code={teamSummary.code} name={teamSummary.name} size="md" />
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="truncate font-display text-xl font-bold tracking-wider text-foreground uppercase">
+                    <h2 className="truncate font-display text-lg font-bold tracking-wider text-foreground uppercase sm:text-xl">
                       {teamSummary.name}
                     </h2>
                     {!teamSummary.isUserTeam ? (
@@ -169,33 +169,35 @@ export function TeamsPage() {
                       rank: teamSummary.rank,
                       wins: teamSummary.wins,
                       losses: teamSummary.losses,
-                      dp: teamSummary.totalFantasyPoints.toFixed(1),
+                      dp: formatStatNumber(teamSummary.totalFantasyPoints),
                     })}
                   </p>
                 </div>
               </div>
 
-              <div className="flex w-full flex-wrap items-center justify-between gap-4 sm:w-auto sm:justify-end sm:gap-6 sm:text-right">
+              <div className="grid w-full grid-cols-3 gap-2 border-t border-border/60 pt-2.5 text-center sm:flex sm:w-auto sm:items-center sm:justify-end sm:gap-6 sm:border-t-0 sm:pt-0 sm:text-right">
                 <div>
-                  <p className="text-[11px] text-muted-foreground uppercase">
+                  <p className="text-[10px] text-muted-foreground uppercase sm:text-[11px]">
                     {t.teams.squadValue}
                   </p>
-                  <p className="font-display text-xl font-bold text-foreground tabular-nums">
+                  <p className="font-display text-base font-bold text-foreground tabular-nums sm:text-xl">
                     {formatMillions(squadValue)}
                   </p>
                 </div>
                 <div>
-                  <p className="text-[11px] text-muted-foreground uppercase">{t.teams.budget}</p>
-                  <p className="font-display text-xl font-bold text-primary tabular-nums">
+                  <p className="text-[10px] text-muted-foreground uppercase sm:text-[11px]">
+                    {t.teams.budget}
+                  </p>
+                  <p className="font-display text-base font-bold text-primary tabular-nums sm:text-xl">
                     {formatMillions(teamSummary.budgetMillions)}
                   </p>
                 </div>
                 <div>
-                  <p className="text-[11px] text-muted-foreground uppercase">
+                  <p className="text-[10px] text-muted-foreground uppercase sm:text-[11px]">
                     {t.teams.playersCount}
                   </p>
-                  <p className="flex items-center gap-1 font-display text-xl font-bold text-foreground tabular-nums sm:justify-end">
-                    <Shield className="h-4 w-4 text-primary" />
+                  <p className="flex items-center justify-center gap-1 font-display text-base font-bold text-foreground tabular-nums sm:justify-end sm:text-xl">
+                    <Shield className="h-3.5 w-3.5 text-primary sm:h-4 sm:w-4" />
                     {uiPlayers.length}/18
                   </p>
                 </div>
@@ -214,7 +216,7 @@ export function TeamsPage() {
               }}
             />
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-2.5 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
               {uiPlayers.map((player) => (
                 <PlayerCard
                   key={player.id}

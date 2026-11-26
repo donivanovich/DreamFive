@@ -18,7 +18,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/Card';
 import { useToast } from '@/components/ui/toast-context';
 import { useDream5State } from '@/hooks/use-dream5-state';
 import { useI18n } from '@/hooks/use-i18n';
-import { formatMillions } from '@/lib/formatters';
+import { formatMillions, formatStatNumber } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
 import { lineupApi, teamsApi } from '@/services/dream5-api';
 import { mapPlayerDtoToUi } from '@/services/mappers';
@@ -179,7 +179,7 @@ export function LineupPage() {
       ) : (
         <>
           <Card>
-            <CardContent className="flex flex-wrap items-center justify-between gap-4 pt-5">
+            <CardContent className="flex flex-wrap items-center justify-between gap-3 pt-3.5 sm:gap-4 sm:pt-5">
               <div>
                 <p className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
                   {f(t.lineup.selectedTitle, { teamName: activeLeague.userTeamName })}
@@ -197,14 +197,14 @@ export function LineupPage() {
                 <p className="text-xs text-muted-foreground uppercase">
                   {t.lineup.projectedAvgLabel}
                 </p>
-                <p className="font-display text-2xl font-bold text-primary tabular-nums">
-                  {projectedAvgDp.toFixed(1)} {t.common.dp}
+                <p className="font-display text-xl font-bold text-primary tabular-nums sm:text-2xl">
+                  {formatStatNumber(projectedAvgDp)} {t.common.dp}
                 </p>
               </div>
             </CardContent>
           </Card>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+          <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2 xl:grid-cols-5">
             {POSITIONS.map((pos) => {
               const selectedId = starters[pos];
               const selectedPlayer = byId.get(selectedId);
@@ -273,7 +273,7 @@ export function LineupPage() {
                               {t.playerUi.ptsCol}
                             </p>
                             <p className="text-xs font-bold text-foreground tabular-nums">
-                              {selectedPlayer.stats.pts.toFixed(1)}
+                              {formatStatNumber(selectedPlayer.stats.pts)}
                             </p>
                           </div>
                           <div>
@@ -281,7 +281,7 @@ export function LineupPage() {
                               {t.playerUi.rebCol}
                             </p>
                             <p className="text-xs font-bold text-foreground tabular-nums">
-                              {selectedPlayer.stats.reb.toFixed(1)}
+                              {formatStatNumber(selectedPlayer.stats.reb)}
                             </p>
                           </div>
                           <div>
@@ -289,7 +289,7 @@ export function LineupPage() {
                               {t.playerUi.astCol}
                             </p>
                             <p className="text-xs font-bold text-foreground tabular-nums">
-                              {selectedPlayer.stats.ast.toFixed(1)}
+                              {formatStatNumber(selectedPlayer.stats.ast)}
                             </p>
                           </div>
                           <div>
@@ -297,7 +297,7 @@ export function LineupPage() {
                               {t.common.dp}
                             </p>
                             <p className="font-display text-xs font-bold text-primary tabular-nums">
-                              {selectedPlayer.stats.fpPerGame.toFixed(1)}
+                              {formatStatNumber(selectedPlayer.stats.fpPerGame)}
                             </p>
                           </div>
                         </div>
@@ -338,7 +338,7 @@ export function LineupPage() {
                             >
                               <span className="truncate font-medium">{candidate.name}</span>
                               <span className="shrink-0 font-display font-bold tabular-nums">
-                                {candidate.stats.fpPerGame.toFixed(1)}
+                                {formatStatNumber(candidate.stats.fpPerGame)}
                               </span>
                             </button>
                           );

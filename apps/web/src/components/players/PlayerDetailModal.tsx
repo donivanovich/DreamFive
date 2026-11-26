@@ -1,4 +1,4 @@
-import { localizeDisciplineReason } from '@dream5/shared';
+import { localizeDisciplineReason, localizeDisqualificationReason } from '@dream5/shared';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 
@@ -14,7 +14,7 @@ import { Badge } from '@/components/ui/Badge';
 import { ModalDialog } from '@/components/ui/Dialog';
 import { useToast } from '@/components/ui/toast-context';
 import { useI18n } from '@/hooks/use-i18n';
-import { formatMillions } from '@/lib/formatters';
+import { formatMillions, formatStatNumber } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
 import { playersApi, teamsApi } from '@/services/dream5-api';
 import { mapPlayerDtoToUi } from '@/services/mappers';
@@ -104,8 +104,8 @@ export function PlayerDetailModal({ leagueId, playerId, onClose }: PlayerDetailM
   ]);
 
   const formatSignedDp = (val: number): string => {
-    const fixed = val.toFixed(1);
-    return val > 0 ? `+${fixed}` : fixed;
+    const text = formatStatNumber(val);
+    return val > 0 && text !== '0' ? `+${text}` : text;
   };
 
   return (
@@ -228,20 +228,20 @@ export function PlayerDetailModal({ leagueId, playerId, onClose }: PlayerDetailM
             <div>
               <p className="text-[10px] text-muted-foreground uppercase">{t.playerUi.dpPerGame}</p>
               <p className="font-display text-lg font-bold text-foreground tabular-nums">
-                {uiPlayer.stats.fpPerGame.toFixed(1)}
+                {formatStatNumber(uiPlayer.stats.fpPerGame)}
               </p>
             </div>
             <div>
               <p className="text-[10px] text-muted-foreground uppercase">{t.common.dpTotal}</p>
               <p className="font-display text-lg font-bold text-primary tabular-nums">
-                {detailQuery.data.player.seasonFantasyPoints.toFixed(1)}
+                {formatStatNumber(detailQuery.data.player.seasonFantasyPoints)}
               </p>
             </div>
             <div>
               <p className="text-[10px] text-muted-foreground uppercase">PTS / REB / AST</p>
               <p className="font-semibold text-foreground tabular-nums">
-                {uiPlayer.stats.pts.toFixed(1)} / {uiPlayer.stats.reb.toFixed(1)} /{' '}
-                {uiPlayer.stats.ast.toFixed(1)}
+                {formatStatNumber(uiPlayer.stats.pts)} / {formatStatNumber(uiPlayer.stats.reb)} /{' '}
+                {formatStatNumber(uiPlayer.stats.ast)}
               </p>
             </div>
           </div>
@@ -289,7 +289,7 @@ export function PlayerDetailModal({ leagueId, playerId, onClose }: PlayerDetailM
             ) : (
               <div className="space-y-3">
                 <div className="dream5-table-scroll max-h-64 overflow-y-auto rounded-md border border-border">
-                  <table className="w-full min-w-[660px] border-collapse text-left text-xs">
+                  <table className="w-full min-w-[820px] border-collapse text-left text-xs">
                     <thead className="sticky top-0 z-10 bg-surface-deep text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
                       <tr className="border-b border-border">
                         <th className="px-2.5 py-2">{t.common.roundShort}</th>
@@ -300,8 +300,12 @@ export function PlayerDetailModal({ leagueId, playerId, onClose }: PlayerDetailM
                         <th className="px-2 py-2 text-right">{t.playerUi.astCol}</th>
                         <th className="px-2 py-2 text-right">{t.playerUi.stlCol}</th>
                         <th className="px-2 py-2 text-right">{t.playerUi.blkCol}</th>
+                        <th className="px-2 py-2 text-right">{t.playerUi.tdCol}</th>
                         <th className="px-2 py-2 text-right">{t.playerUi.tovCol}</th>
                         <th className="px-2 py-2 text-right">{t.playerUi.pfCol}</th>
+                        <th className="px-2 py-2 text-right">{t.playerUi.tfCol}</th>
+                        <th className="px-2 py-2 text-right">{t.playerUi.ft1Col}</th>
+                        <th className="px-2 py-2 text-right">{t.playerUi.ft2Col}</th>
                         <th className="px-2.5 py-2 text-right">{t.playerUi.totalDpCol}</th>
                       </tr>
                     </thead>
@@ -313,6 +317,9 @@ export function PlayerDetailModal({ leagueId, playerId, onClose }: PlayerDetailM
                           stat.teamScore !== null && stat.opponentScore !== null
                             ? `${String(stat.teamScore)}-${String(stat.opponentScore)}`
                             : '—';
+                        const dqLabel = stat.disqualificationReason
+                          ? localizeDisqualificationReason(stat.disqualificationReason, language)
+                          : t.playerUi.ejectedTag;
                         return (
                           <tr
                             key={stat.matchId}
@@ -341,8 +348,8 @@ export function PlayerDetailModal({ leagueId, playerId, onClose }: PlayerDetailM
                                 {stat.injured ? (
                                   <Badge variant="danger">{t.playerUi.injuryTag}</Badge>
                                 ) : null}
-                                {stat.ejected ? (
-                                  <Badge variant="warning">{t.playerUi.ejectedTag}</Badge>
+                                {stat.ejected || stat.disqualified ? (
+                                  <Badge variant="warning">{dqLabel}</Badge>
                                 ) : null}
                               </div>
                             </td>
@@ -383,6 +390,12 @@ export function PlayerDetailModal({ leagueId, playerId, onClose }: PlayerDetailM
                               </div>
                             </td>
                             <td className="px-2 py-1.5 text-right tabular-nums">
+                              <div>{stat.td}</div>
+                              <div className="text-[10px] text-muted-foreground">
+                                {formatSignedDp(stat.dpBreakdown.td)}
+                              </div>
+                            </td>
+                            <td className="px-2 py-1.5 text-right tabular-nums">
                               <div>{stat.tov}</div>
                               <div className="text-[10px] text-red-400/90">
                                 {formatSignedDp(stat.dpBreakdown.tov)}
@@ -394,8 +407,33 @@ export function PlayerDetailModal({ leagueId, playerId, onClose }: PlayerDetailM
                                 {formatSignedDp(stat.dpBreakdown.pf)}
                               </div>
                             </td>
-                            <td className="px-2.5 py-1.5 text-right font-display text-sm font-bold whitespace-nowrap text-primary tabular-nums">
-                              {stat.fantasyPoints.toFixed(1)} {t.common.dp}
+                            <td className="px-2 py-1.5 text-right tabular-nums">
+                              <div>{stat.tf}</div>
+                              <div className="text-[10px] text-red-400/90">
+                                {formatSignedDp(stat.dpBreakdown.tf)}
+                              </div>
+                            </td>
+                            <td className="px-2 py-1.5 text-right tabular-nums">
+                              <div>{stat.ft1}</div>
+                              <div className="text-[10px] text-red-400/90">
+                                {formatSignedDp(stat.dpBreakdown.ft1)}
+                              </div>
+                            </td>
+                            <td className="px-2 py-1.5 text-right tabular-nums">
+                              <div>{stat.ft2}</div>
+                              <div className="text-[10px] text-red-400/90">
+                                {formatSignedDp(stat.dpBreakdown.ft2)}
+                              </div>
+                            </td>
+                            <td
+                              className={cn(
+                                'px-2.5 py-1.5 text-right font-display text-sm font-bold whitespace-nowrap tabular-nums',
+                                stat.fantasyPoints < 0
+                                  ? 'text-[var(--tone-danger)]'
+                                  : 'text-primary',
+                              )}
+                            >
+                              {formatStatNumber(stat.fantasyPoints)} {t.common.dp}
                             </td>
                           </tr>
                         );
@@ -413,7 +451,7 @@ export function PlayerDetailModal({ leagueId, playerId, onClose }: PlayerDetailM
                       })}
                     </p>
                     <div className="dream5-table-scroll">
-                      <table className="w-full min-w-[420px] border-collapse text-xs">
+                      <table className="w-full min-w-[460px] border-collapse text-xs">
                         <thead>
                           <tr className="border-b border-border/80 text-[10px] text-muted-foreground uppercase">
                             <th className="py-1 text-left">{t.playerUi.statCol}</th>
@@ -426,61 +464,83 @@ export function PlayerDetailModal({ leagueId, playerId, onClose }: PlayerDetailM
                           {(
                             [
                               [
+                                t.playerUi.statMinutes,
+                                selectedStat.minutes,
+                                t.playerUi.ruleMin,
+                                selectedStat.dpBreakdown.minutes,
+                              ],
+                              [
                                 t.playerUi.statPoints,
                                 selectedStat.pts,
-                                detailQuery.data.scoringWeights.pts,
+                                t.playerUi.rulePts,
                                 selectedStat.dpBreakdown.pts,
                               ],
                               [
                                 t.playerUi.statRebounds,
                                 selectedStat.reb,
-                                detailQuery.data.scoringWeights.reb,
+                                t.playerUi.ruleReb,
                                 selectedStat.dpBreakdown.reb,
                               ],
                               [
                                 t.playerUi.statAssists,
                                 selectedStat.ast,
-                                detailQuery.data.scoringWeights.ast,
+                                t.playerUi.ruleAst,
                                 selectedStat.dpBreakdown.ast,
                               ],
                               [
                                 t.playerUi.statSteals,
                                 selectedStat.stl,
-                                detailQuery.data.scoringWeights.stl,
+                                t.playerUi.ruleStl,
                                 selectedStat.dpBreakdown.stl,
                               ],
                               [
                                 t.playerUi.statBlocks,
                                 selectedStat.blk,
-                                detailQuery.data.scoringWeights.blk,
+                                t.playerUi.ruleBlk,
                                 selectedStat.dpBreakdown.blk,
+                              ],
+                              [
+                                t.playerUi.statTripleDouble,
+                                selectedStat.td,
+                                t.playerUi.ruleTd,
+                                selectedStat.dpBreakdown.td,
                               ],
                               [
                                 t.playerUi.statTurnovers,
                                 selectedStat.tov,
-                                detailQuery.data.scoringWeights.tov,
+                                t.playerUi.ruleTov,
                                 selectedStat.dpBreakdown.tov,
                               ],
                               [
                                 t.playerUi.statFouls,
                                 selectedStat.pf,
-                                detailQuery.data.scoringWeights.pf,
+                                t.playerUi.rulePf,
                                 selectedStat.dpBreakdown.pf,
                               ],
                               [
-                                t.playerUi.statMinutes,
-                                selectedStat.minutes,
-                                detailQuery.data.scoringWeights.min,
-                                selectedStat.dpBreakdown.minutes,
+                                t.playerUi.statTechnicalFouls,
+                                selectedStat.tf,
+                                t.playerUi.ruleTf,
+                                selectedStat.dpBreakdown.tf,
+                              ],
+                              [
+                                t.playerUi.statFlagrant1,
+                                selectedStat.ft1,
+                                t.playerUi.ruleFt1,
+                                selectedStat.dpBreakdown.ft1,
+                              ],
+                              [
+                                t.playerUi.statFlagrant2,
+                                selectedStat.ft2,
+                                t.playerUi.ruleFt2,
+                                selectedStat.dpBreakdown.ft2,
                               ],
                             ] as const
-                          ).map(([label, qty, weight, dp]) => (
+                          ).map(([label, qty, ruleLabel, dp]) => (
                             <tr key={label}>
                               <td className="py-1 text-foreground">{label}</td>
                               <td className="py-1 text-right font-medium text-foreground">{qty}</td>
-                              <td className="py-1 text-right text-muted-foreground">
-                                × {weight.toFixed(2)}
-                              </td>
+                              <td className="py-1 text-right text-muted-foreground">{ruleLabel}</td>
                               <td
                                 className={cn(
                                   'py-1 text-right font-semibold',
@@ -496,6 +556,23 @@ export function PlayerDetailModal({ leagueId, playerId, onClose }: PlayerDetailM
                             </tr>
                           ))}
                         </tbody>
+                        <tfoot>
+                          <tr className="border-t border-border font-semibold">
+                            <td colSpan={3} className="pt-2 text-left text-foreground">
+                              {t.playerUi.totalBreakdownLabel}
+                            </td>
+                            <td
+                              className={cn(
+                                'pt-2 text-right tabular-nums',
+                                selectedStat.fantasyPoints < 0
+                                  ? 'text-[var(--tone-danger)]'
+                                  : 'text-primary',
+                              )}
+                            >
+                              {formatSignedDp(selectedStat.fantasyPoints)} {t.common.dp}
+                            </td>
+                          </tr>
+                        </tfoot>
                       </table>
                     </div>
                   </div>

@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { TeamLogo, UserAvatar } from '@/components/players/PlayerBadges';
 import { SortableHeaderCell } from '@/components/shared/SortableTable';
 import { useI18n } from '@/hooks/use-i18n';
+import { formatLocaleDecimal } from '@/lib/formatters';
 import { cycleThreeStateSort, sortItemsByState, type SortState } from '@/lib/table-sort';
 import { cn } from '@/lib/utils';
 import type { StandingEntry } from '@/types/fantasy';
@@ -17,7 +18,7 @@ export function StandingsTable({
   readonly compact?: boolean;
 }) {
   const { locale, t } = useI18n();
-  const cellPad = compact ? 'px-3 py-2' : 'px-4 py-3';
+  const cellPad = compact ? 'px-2 py-2 sm:px-3 sm:py-2' : 'px-2.5 py-2 sm:px-4 sm:py-3';
   const [sort, setSort] = useState<SortState<StandingSortKey> | null>(null);
 
   const handleSort = (key: StandingSortKey) => {
@@ -107,12 +108,14 @@ export function StandingsTable({
                 {entry.rank}
               </td>
               <td className={cellPad}>
-                <div className="flex min-w-0 items-center gap-2">
+                <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
                   <TeamLogo code={entry.teamAbbr} name={entry.teamName} size="sm" />
                   <span className="rounded border border-border bg-surface-deep px-1.5 py-0.5 font-display text-xs font-bold tracking-wider text-foreground">
                     {entry.teamAbbr}
                   </span>
-                  <span className="truncate font-medium text-foreground">{entry.teamName}</span>
+                  <span className="hidden truncate font-medium text-foreground sm:inline">
+                    {entry.teamName}
+                  </span>
                   {entry.isUserTeam ? (
                     <span className="rounded bg-primary/20 px-1.5 py-0.5 text-[10px] font-bold tracking-wider text-primary uppercase">
                       {t.common.you}
@@ -140,10 +143,7 @@ export function StandingsTable({
                 </td>
               ) : null}
               <td className={cn(cellPad, 'text-right font-semibold text-foreground tabular-nums')}>
-                {entry.fantasyPoints.toLocaleString(locale, {
-                  minimumFractionDigits: 1,
-                  maximumFractionDigits: 1,
-                })}
+                {formatLocaleDecimal(entry.fantasyPoints, locale)}
               </td>
               {!compact ? (
                 <td className={cn(cellPad, 'whitespace-nowrap')}>

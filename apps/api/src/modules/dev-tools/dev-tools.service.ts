@@ -8,11 +8,9 @@ import {
 import { InjectQueue } from '@nestjs/bullmq';
 import {
   advanceSeasonForLeague,
-  recalculateRoundStandingsInTx,
   repriceLeagueMarket,
-  runAutonomousCpuTransfersInTx,
   simulateRoundForLeague,
-  simulateSingleMatchInTx,
+  simulateScheduledMatchAndProgress,
   syncLeagueClockToRealTime,
 } from '@dream5/database';
 import {
@@ -103,33 +101,49 @@ export class DevToolsService implements OnModuleDestroy {
       throw new NotFoundException('Temporada activa no encontrada.');
     }
 
-    const [scheduledRemaining, completedCount, nextScheduledMatch, pendingJobsCount, recentJobs] =
-      await Promise.all([
-        this.prisma.client.match.count({
-          where: { leagueId, seasonId: season.id, status: 'SCHEDULED' },
-        }),
-        this.prisma.client.match.count({
-          where: { leagueId, seasonId: season.id, status: 'FINAL' },
-        }),
-        this.prisma.client.match.findFirst({
-          where: { leagueId, seasonId: season.id, status: 'SCHEDULED' },
-          orderBy: [{ roundNumber: 'asc' }, { scheduledAt: 'asc' }],
-          select: { roundNumber: true },
-        }),
-        this.prisma.client.simulationJob.count({
-          where: { leagueId, status: { in: ['QUEUED', 'RUNNING'] } },
-        }),
-        this.prisma.client.simulationJob.findMany({
-          where: { leagueId },
-          orderBy: { startedAt: 'desc' },
-          take: 12,
-        }),
-      ]);
+    const [
+      scheduledRemaining,
+      completedCount,
+      nextScheduledMatch,
+      pendingJobsCount,
+      recentJobs,
+      workerOnline,
+    ] = await Promise.all([
+      this.prisma.client.match.count({
+        where: { leagueId, seasonId: season.id, status: 'SCHEDULED' },
+      }),
+      this.prisma.client.match.count({
+        where: { leagueId, seasonId: season.id, status: 'FINAL' },
+      }),
+      this.prisma.client.match.findFirst({
+        where: { leagueId, seasonId: season.id, status: 'SCHEDULED' },
+        orderBy: [{ roundNumber: 'asc' }, { scheduledAt: 'asc' }],
+        select: {
+          roundNumber: true,
+          scheduledAt: true,
+          homeTeam: { select: { code: true } },
+          awayTeam: { select: { code: true } },
+        },
+      }),
+      this.prisma.client.simulationJob.count({
+        where: { leagueId, status: { in: ['QUEUED', 'RUNNING'] } },
+      }),
+      this.prisma.client.simulationJob.findMany({
+        where: { leagueId },
+        orderBy: { startedAt: 'desc' },
+        take: 12,
+      }),
+      this.hasActiveWorkers(this.simulationQueue),
+    ]);
 
     return {
       leagueId: league.id,
       leagueName: league.name,
+      serverTimeIso: new Date().toISOString(),
+      serverTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
       gameClockAt: league.gameClockAt.toISOString(),
+      isAccelerated: league.isAccelerated,
+      workerOnline,
       season: {
         id: season.id,
         seasonNumber: season.seasonNumber,
@@ -146,6 +160,10 @@ export class DevToolsService implements OnModuleDestroy {
       scheduledMatchesRemaining: scheduledRemaining,
       completedMatchesCount: completedCount,
       nextScheduledRound: nextScheduledMatch?.roundNumber ?? null,
+      nextScheduledMatchAt: nextScheduledMatch?.scheduledAt.toISOString() ?? null,
+      nextScheduledMatchLabel: nextScheduledMatch
+        ? `${nextScheduledMatch.awayTeam.code} @ ${nextScheduledMatch.homeTeam.code}`
+        : null,
       pendingJobsCount,
       recentJobs: recentJobs.map((j) => ({
         id: j.id,
@@ -219,6 +237,12 @@ export class DevToolsService implements OnModuleDestroy {
     });
     this.realtime.emitLeagueEvent({
       leagueId,
+      eventType: SOCKET_EVENTS.matchUpdated,
+      roundNumber: res.roundNumber,
+      timestamp: new Date().toISOString(),
+    });
+    this.realtime.emitLeagueEvent({
+      leagueId,
       eventType: SOCKET_EVENTS.roundCompleted,
       roundNumber: res.roundNumber,
       timestamp: new Date().toISOString(),
@@ -246,6 +270,22 @@ export class DevToolsService implements OnModuleDestroy {
         leagueId,
         eventType: SOCKET_EVENTS.mailUpdated,
         roundNumber: res.roundNumber,
+        timestamp: new Date().toISOString(),
+      });
+    }
+    if (res.seasonCompleted) {
+      await advanceSeasonForLeague(this.prisma.client, {
+        leagueId,
+        expectedSeasonId: res.seasonId,
+      });
+      this.realtime.emitLeagueEvent({
+        leagueId,
+        eventType: SOCKET_EVENTS.seasonRollover,
+        timestamp: new Date().toISOString(),
+      });
+      this.realtime.emitLeagueEvent({
+        leagueId,
+        eventType: SOCKET_EVENTS.mailUpdated,
         timestamp: new Date().toISOString(),
       });
     }
@@ -320,17 +360,9 @@ export class DevToolsService implements OnModuleDestroy {
       };
     }
 
-    const outcome = await this.prisma.client.$transaction(async (tx) => {
-      const matchRes = await simulateSingleMatchInTx(tx, {
-        leagueId,
-        matchId: targetMatch.id,
-      });
-      await recalculateRoundStandingsInTx(tx, {
-        leagueId,
-        seasonId: matchRes.seasonId,
-        roundNumber: matchRes.roundNumber,
-      });
-      return matchRes;
+    const outcome = await simulateScheduledMatchAndProgress(this.prisma.client, {
+      leagueId,
+      matchId: targetMatch.id,
     });
 
     await this.prisma.client.simulationJob.update({
@@ -338,67 +370,66 @@ export class DevToolsService implements OnModuleDestroy {
       data: { status: 'COMPLETED', finishedAt: new Date() },
     });
 
-    this.realtime.emitLeagueEvent({
-      leagueId,
-      eventType: SOCKET_EVENTS.matchUpdated,
-      roundNumber: outcome.roundNumber,
-      matchId: outcome.matchId,
-      timestamp: new Date().toISOString(),
-    });
-    this.realtime.emitLeagueEvent({
-      leagueId,
-      eventType: SOCKET_EVENTS.standingsUpdated,
-      roundNumber: outcome.roundNumber,
-      timestamp: new Date().toISOString(),
-    });
-
-    const remainingInRound = await this.prisma.client.match.count({
-      where: {
+    if (!outcome.alreadyCompleted) {
+      const ts = new Date().toISOString();
+      this.realtime.emitLeagueEvent({
         leagueId,
-        seasonId: outcome.seasonId,
+        eventType: SOCKET_EVENTS.matchUpdated,
         roundNumber: outcome.roundNumber,
-        status: 'SCHEDULED',
-      },
-    });
-    if (remainingInRound === 0) {
-      await this.prisma.client.season.update({
-        where: { id: outcome.seasonId },
-        data: { currentRoundNumber: outcome.roundNumber },
+        matchId: outcome.matchId,
+        timestamp: ts,
       });
-      await repriceLeagueMarket(this.prisma.client, {
+      this.realtime.emitLeagueEvent({
         leagueId,
-        reason: `Post-jornada ${String(outcome.roundNumber)}`,
+        eventType: SOCKET_EVENTS.standingsUpdated,
+        roundNumber: outcome.roundNumber,
+        timestamp: ts,
       });
-      await this.prisma.client.$transaction((tx) =>
-        runAutonomousCpuTransfersInTx(tx, {
-          leagueId,
-          seasonId: outcome.seasonId,
-          roundNumber: outcome.roundNumber,
-        }),
-      );
+    }
+
+    if (outcome.roundCompleted) {
+      const ts = new Date().toISOString();
       this.realtime.emitLeagueEvent({
         leagueId,
         eventType: SOCKET_EVENTS.roundCompleted,
         roundNumber: outcome.roundNumber,
-        timestamp: new Date().toISOString(),
+        timestamp: ts,
       });
       this.realtime.emitLeagueEvent({
         leagueId,
         eventType: SOCKET_EVENTS.marketUpdated,
         roundNumber: outcome.roundNumber,
-        timestamp: new Date().toISOString(),
+        timestamp: ts,
       });
       this.realtime.emitLeagueEvent({
         leagueId,
         eventType: SOCKET_EVENTS.transferUpdated,
         roundNumber: outcome.roundNumber,
-        timestamp: new Date().toISOString(),
+        timestamp: ts,
       });
       this.realtime.emitLeagueEvent({
         leagueId,
         eventType: SOCKET_EVENTS.mailUpdated,
         roundNumber: outcome.roundNumber,
-        timestamp: new Date().toISOString(),
+        timestamp: ts,
+      });
+    }
+
+    if (outcome.seasonCompleted) {
+      await advanceSeasonForLeague(this.prisma.client, {
+        leagueId,
+        expectedSeasonId: outcome.seasonId,
+      });
+      const ts = new Date().toISOString();
+      this.realtime.emitLeagueEvent({
+        leagueId,
+        eventType: SOCKET_EVENTS.seasonRollover,
+        timestamp: ts,
+      });
+      this.realtime.emitLeagueEvent({
+        leagueId,
+        eventType: SOCKET_EVENTS.mailUpdated,
+        timestamp: ts,
       });
     }
     return {
@@ -427,6 +458,12 @@ export class DevToolsService implements OnModuleDestroy {
     await this.prisma.client.league.update({
       where: { id: leagueId },
       data: { gameClockAt: newClock, isAccelerated: true },
+    });
+
+    this.realtime.emitLeagueEvent({
+      leagueId,
+      eventType: SOCKET_EVENTS.clockUpdated,
+      timestamp: newClock.toISOString(),
     });
 
     const dueRounds = await this.prisma.client.match.findMany({
@@ -574,6 +611,11 @@ export class DevToolsService implements OnModuleDestroy {
     });
 
     const ts = now.toISOString();
+    this.realtime.emitLeagueEvent({
+      leagueId,
+      eventType: SOCKET_EVENTS.clockUpdated,
+      timestamp: res.newGameClockAt,
+    });
     this.realtime.emitLeagueEvent({
       leagueId,
       eventType: SOCKET_EVENTS.roundCompleted,

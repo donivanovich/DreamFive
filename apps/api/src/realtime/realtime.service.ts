@@ -43,6 +43,19 @@ export class RealtimeService implements OnModuleInit, OnModuleDestroy {
       maxRetriesPerRequest: null,
     });
 
+    this.subscriber.on('ready', () => {
+      if (!this.subscriber) {
+        return;
+      }
+      void this.subscriber
+        .subscribe(REDIS_CHANNELS.leagueRealtimeEvents)
+        .catch((error: unknown) => {
+          this.logger.warn(
+            `No se pudo suscribir al canal Redis Pub/Sub: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        });
+    });
+
     this.subscriber.on('message', (channel: string, rawMessage: string) => {
       if (channel !== REDIS_CHANNELS.leagueRealtimeEvents) {
         return;
@@ -61,7 +74,6 @@ export class RealtimeService implements OnModuleInit, OnModuleDestroy {
 
     try {
       await this.subscriber.connect();
-      await this.subscriber.subscribe(REDIS_CHANNELS.leagueRealtimeEvents);
     } catch (error: unknown) {
       this.logger.warn(
         `Suscriptor Redis Pub/Sub no conectado inicialmente: ${error instanceof Error ? error.message : String(error)}`,

@@ -8,7 +8,7 @@ import {
 import { uiToContextTarget, usePlayerContextMenu } from '@/components/players/player-context';
 import { Card, CardContent } from '@/components/ui/Card';
 import { useI18n } from '@/hooks/use-i18n';
-import { formatMillions } from '@/lib/formatters';
+import { formatMillions, formatStatNumber } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
 import type { Player } from '@/types/fantasy';
 
@@ -44,7 +44,7 @@ export function PlayerCard({
         onSelect && 'cursor-pointer',
       )}
     >
-      <CardContent className="space-y-3 pt-4">
+      <CardContent className="space-y-2.5 pt-3.5 sm:space-y-3 sm:pt-4">
         <div className="flex items-start justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2.5">
             <PlayerAvatar
@@ -81,7 +81,7 @@ export function PlayerCard({
               {t.playerUi.ptsCol}
             </p>
             <p className="text-xs font-semibold text-foreground tabular-nums">
-              {player.stats.pts.toFixed(1)}
+              {formatStatNumber(player.stats.pts)}
             </p>
           </div>
           <div>
@@ -89,7 +89,7 @@ export function PlayerCard({
               {t.playerUi.rebCol}
             </p>
             <p className="text-xs font-semibold text-foreground tabular-nums">
-              {player.stats.reb.toFixed(1)}
+              {formatStatNumber(player.stats.reb)}
             </p>
           </div>
           <div>
@@ -97,7 +97,7 @@ export function PlayerCard({
               {t.playerUi.astCol}
             </p>
             <p className="text-xs font-semibold text-foreground tabular-nums">
-              {player.stats.ast.toFixed(1)}
+              {formatStatNumber(player.stats.ast)}
             </p>
           </div>
           <div>
@@ -105,7 +105,7 @@ export function PlayerCard({
               {t.common.dp}
             </p>
             <p className="text-xs font-bold text-primary tabular-nums">
-              {player.stats.fpPerGame.toFixed(1)}
+              {formatStatNumber(player.stats.fpPerGame)}
             </p>
           </div>
         </div>

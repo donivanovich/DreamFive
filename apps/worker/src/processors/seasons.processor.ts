@@ -16,11 +16,14 @@ export class SeasonsProcessor extends WorkerHost {
     super();
   }
 
-  async process(
-    job: Job<SeasonRolloverJobData>,
-  ): Promise<{ readonly newSeasonId: string; readonly newSeasonNumber: number }> {
+  async process(job: Job<SeasonRolloverJobData>): Promise<{
+    readonly newSeasonId: string;
+    readonly newSeasonNumber: number;
+    readonly alreadyAdvanced?: boolean;
+  }> {
     const result = await advanceSeasonForLeague(this.prisma.client, {
       leagueId: job.data.leagueId,
+      ...(job.data.expectedSeasonId ? { expectedSeasonId: job.data.expectedSeasonId } : {}),
       ...(job.data.resetConfig ? { resetConfig: job.data.resetConfig } : {}),
     });
 
@@ -35,20 +38,23 @@ export class SeasonsProcessor extends WorkerHost {
       });
     }
 
-    await this.realtime.publishLeagueEvent({
-      leagueId: job.data.leagueId,
-      eventType: SOCKET_EVENTS.seasonRollover,
-      timestamp: new Date().toISOString(),
-    });
-    await this.realtime.publishLeagueEvent({
-      leagueId: job.data.leagueId,
-      eventType: SOCKET_EVENTS.mailUpdated,
-      timestamp: new Date().toISOString(),
-    });
+    if (!result.alreadyAdvanced) {
+      await this.realtime.publishLeagueEvent({
+        leagueId: job.data.leagueId,
+        eventType: SOCKET_EVENTS.seasonRollover,
+        timestamp: new Date().toISOString(),
+      });
+      await this.realtime.publishLeagueEvent({
+        leagueId: job.data.leagueId,
+        eventType: SOCKET_EVENTS.mailUpdated,
+        timestamp: new Date().toISOString(),
+      });
+    }
 
     return {
       newSeasonId: result.newSeasonId,
       newSeasonNumber: result.newSeasonNumber,
+      ...(result.alreadyAdvanced ? { alreadyAdvanced: true } : {}),
     };
   }
 }

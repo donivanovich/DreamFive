@@ -2,13 +2,13 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '@dream5/database';
 import {
   type AvailabilityStatus,
+  parseLeagueScoringWeights,
   type PlayerDetailResponseDto,
   type PlayerInstanceDto,
   type PlayerRole,
   type Position,
-  PROVISIONAL_GAME_CONFIG,
-  type ScoringWeightsConfig,
 } from '@dream5/shared';
+import { calculatePlayerDreamPointsBreakdown } from '@dream5/simulation-engine';
 
 import { toPlayerInstanceDto } from '../../common/dto-mappers.js';
 import { PrismaService } from '../../database/prisma.service.js';
@@ -127,8 +127,7 @@ export class PlayersService {
       throw new NotFoundException('Jugador no encontrado en esta liga.');
     }
 
-    const scoringWeights = parseScoringWeights(league?.scoringConfigJson);
-    const roundDp = (value: number): number => Math.round(value * 10) / 10;
+    const scoringWeights = parseLeagueScoringWeights(league?.scoringConfigJson);
 
     const [recentStats, marketHistory] = await Promise.all([
       this.prisma.client.playerMatchStat.findMany({
@@ -168,6 +167,22 @@ export class PlayersService {
       recentStats: recentStats.map((s) => {
         const isHome = s.match.homeTeamId === s.leagueTeamId;
         const opponent = isHome ? s.match.awayTeam : s.match.homeTeam;
+        const breakdown = calculatePlayerDreamPointsBreakdown(
+          {
+            pts: s.pts,
+            reb: s.reb,
+            ast: s.ast,
+            stl: s.stl,
+            blk: s.blk,
+            tov: s.tov,
+            pf: s.pf,
+            tf: s.tf,
+            ft1: s.ft1,
+            ft2: s.ft2,
+            minutes: s.minutes,
+          },
+          scoringWeights,
+        );
         return {
           matchId: s.matchId,
           roundNumber: s.roundNumber,
@@ -185,21 +200,31 @@ export class PlayersService {
           ast: s.ast,
           stl: s.stl,
           blk: s.blk,
+          td: s.td,
           tov: s.tov,
           pf: s.pf,
+          tf: s.tf,
+          ft1: s.ft1,
+          ft2: s.ft2,
           fantasyPoints: s.fantasyPoints,
           wasStarter: s.wasStarter,
           ejected: s.ejected,
+          disqualified: s.ejected,
+          disqualificationReason: s.disqualificationReason,
           injured: s.injured,
           dpBreakdown: {
-            pts: roundDp(s.pts * scoringWeights.pts),
-            reb: roundDp(s.reb * scoringWeights.reb),
-            ast: roundDp(s.ast * scoringWeights.ast),
-            stl: roundDp(s.stl * scoringWeights.stl),
-            blk: roundDp(s.blk * scoringWeights.blk),
-            tov: roundDp(s.tov * scoringWeights.tov),
-            pf: roundDp(s.pf * scoringWeights.pf),
-            minutes: roundDp(s.minutes * scoringWeights.min),
+            pts: breakdown.pts,
+            reb: breakdown.reb,
+            ast: breakdown.ast,
+            stl: breakdown.stl,
+            blk: breakdown.blk,
+            td: breakdown.td,
+            tov: breakdown.tov,
+            pf: breakdown.pf,
+            tf: breakdown.tf,
+            ft1: breakdown.ft1,
+            ft2: breakdown.ft2,
+            minutes: breakdown.minutes,
           },
         };
       }),
@@ -211,26 +236,4 @@ export class PlayersService {
       })),
     };
   }
-}
-
-function parseScoringWeights(raw: unknown): ScoringWeightsConfig {
-  const defaults = PROVISIONAL_GAME_CONFIG.scoringWeights;
-  if (!raw || typeof raw !== 'object') {
-    return defaults;
-  }
-  const obj = raw as Record<string, unknown>;
-  const readNum = (key: keyof ScoringWeightsConfig): number => {
-    const val = obj[key];
-    return typeof val === 'number' && Number.isFinite(val) ? val : defaults[key];
-  };
-  return {
-    pts: readNum('pts'),
-    reb: readNum('reb'),
-    ast: readNum('ast'),
-    stl: readNum('stl'),
-    blk: readNum('blk'),
-    tov: readNum('tov'),
-    pf: readNum('pf'),
-    min: readNum('min'),
-  };
 }

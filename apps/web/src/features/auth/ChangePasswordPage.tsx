@@ -217,6 +217,7 @@ export function ChangePasswordPage() {
               </label>
               <PasswordInput
                 id="reset-new-password"
+                autoComplete="new-password"
                 value={newPassword}
                 onChange={(event) => {
                   setNewPassword(event.target.value);
@@ -235,6 +236,7 @@ export function ChangePasswordPage() {
               </label>
               <PasswordInput
                 id="reset-confirm-password"
+                autoComplete="new-password"
                 value={confirmPassword}
                 onChange={(event) => {
                   setConfirmPassword(event.target.value);

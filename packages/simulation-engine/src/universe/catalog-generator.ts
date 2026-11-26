@@ -538,7 +538,7 @@ function buildGeneratedPlayerBlueprint(params: {
   const iq = clampAttr(overallRating + (age >= 28 ? 5 : -2) + rng.nextInt(-5, 5));
 
   const rawPrice =
-    role === 'SUPERSTAR'
+    (role === 'SUPERSTAR'
       ? rng.nextRange(22, 34)
       : role === 'STAR'
         ? rng.nextRange(13, 21)
@@ -548,7 +548,7 @@ function buildGeneratedPlayerBlueprint(params: {
             ? rng.nextRange(3.2, 6.8)
             : role === 'ROOKIE'
               ? rng.nextRange(2.2, 6.0)
-              : rng.nextRange(0.9, 3.0);
+              : rng.nextRange(0.9, 3.0)) * 3;
 
   const basePriceMillions = Math.round(rawPrice * 10) / 10;
   const initials = `${firstName[0] ?? 'D'}${lastName[0] ?? '5'}`.toUpperCase();

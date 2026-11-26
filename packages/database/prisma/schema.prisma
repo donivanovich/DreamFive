@@ -257,6 +257,7 @@ model League {
   isAccelerated     Boolean      @default(false) @map("is_accelerated")
   simulationSeed    String       @map("simulation_seed")
   scoringConfigJson Json         @map("scoring_config_json")
+  marketScale       Int          @default(3) @map("market_scale")
   createdAt         DateTime     @default(now()) @map("created_at")
   updatedAt         DateTime     @updatedAt @map("updated_at")
 
@@ -323,7 +324,7 @@ model LeagueTeam {
   name               String
   shortName          String  @map("short_name")
   code               String
-  budgetMillions     Float   @default(25.0) @map("budget_millions")
+  budgetMillions     Float   @default(75.0) @map("budget_millions")
   isCpuControlled    Boolean @default(true) @map("is_cpu_controlled")
   totalFantasyPoints Float   @default(0) @map("total_fantasy_points")
   wins               Int     @default(0)
@@ -544,25 +545,30 @@ model MatchEvent {
 }
 
 model PlayerMatchStat {
-  id               String  @id @default(cuid())
-  leagueId         String  @map("league_id")
-  seasonId         String  @map("season_id")
-  matchId          String  @map("match_id")
-  roundNumber      Int     @map("round_number")
-  leagueTeamId     String  @map("league_team_id")
-  playerInstanceId String  @map("player_instance_id")
-  minutes          Int
-  pts              Int
-  reb              Int
-  ast              Int
-  stl              Int
-  blk              Int
-  tov              Int
-  pf               Int
-  fantasyPoints    Float   @map("fantasy_points")
-  wasStarter       Boolean @map("was_starter")
-  ejected          Boolean @default(false)
-  injured          Boolean @default(false)
+  id                     String  @id @default(cuid())
+  leagueId               String  @map("league_id")
+  seasonId               String  @map("season_id")
+  matchId                String  @map("match_id")
+  roundNumber            Int     @map("round_number")
+  leagueTeamId           String  @map("league_team_id")
+  playerInstanceId       String  @map("player_instance_id")
+  minutes                Int
+  pts                    Int
+  reb                    Int
+  ast                    Int
+  stl                    Int
+  blk                    Int
+  td                     Int     @default(0)
+  tov                    Int
+  pf                     Int
+  tf                     Int     @default(0)
+  ft1                    Int     @default(0)
+  ft2                    Int     @default(0)
+  fantasyPoints          Float   @map("fantasy_points")
+  wasStarter             Boolean @map("was_starter")
+  ejected                Boolean @default(false)
+  disqualificationReason String? @map("disqualification_reason")
+  injured                Boolean @default(false)
 
   league League         @relation(fields: [leagueId], references: [id], onDelete: Cascade)
   season Season         @relation(fields: [seasonId, leagueId], references: [id, leagueId], onDelete: Restrict)

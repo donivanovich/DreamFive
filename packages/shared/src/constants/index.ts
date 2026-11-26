@@ -31,6 +31,7 @@ export const JOB_NAMES = {
 export const SOCKET_EVENTS = {
   joinLeagueRoom: 'league:room.join',
   leaveLeagueRoom: 'league:room.leave',
+  clockUpdated: 'league:clock.updated',
   matchUpdated: 'league:match.updated',
   roundCompleted: 'league:round.completed',
   standingsUpdated: 'league:standings.updated',
@@ -45,16 +46,47 @@ export const REDIS_CHANNELS = {
 } as const;
 
 export interface ScoringWeightsConfig {
-  /** PROVISIONAL: multiplicadores editables por configuración. */
+  /** Reglas oficiales NBA de Dream Points (multiplicadores, divisores y topes). */
   readonly pts: number;
   readonly reb: number;
   readonly ast: number;
   readonly stl: number;
   readonly blk: number;
+  readonly td: number;
   readonly tov: number;
   readonly pf: number;
+  readonly tf: number;
+  readonly ft1: number;
+  readonly ft2: number;
   readonly min: number;
+  readonly ptsDivisor: number;
+  readonly rebDivisor: number;
+  readonly astDivisor: number;
+  readonly minDivisor: number;
+  readonly minMaxPoints: number;
+  readonly minMaxMinutes: number;
 }
+
+export const DREAM5_NBA_SCORING_RULES = {
+  minPerPoint: 10,
+  minMaxPoints: 4,
+  minMaxMinutes: 48,
+  ptsPerPoint: 5,
+  rebPerPoint: 2,
+  astPerPoint: 2,
+  stlPoints: 1,
+  blkPoints: 1,
+  tripleDoublePoints: 4,
+  tovPoints: -1,
+  pfPoints: -1,
+  pfDisqualificationLimit: 6,
+  tfPoints: -2,
+  tfDisqualificationLimit: 2,
+  ft1Points: -3,
+  ft1DisqualificationLimit: 2,
+  ft2Points: -5,
+  ft2DisqualificationLimit: 1,
+} as const;
 
 export interface SeasonResetConfig {
   /** PROVISIONAL: políticas configurables de reinicio mensual entre temporadas. */
@@ -78,6 +110,8 @@ export interface LeagueCreationRules {
   readonly dailyWindowStartHour: 8;
   readonly dailyWindowEndHour: 20;
 }
+
+export const DEFAULT_LEAGUE_TIME_ZONE = 'Europe/Madrid';
 
 export const LEAGUE_RULES: LeagueCreationRules = {
   totalTeams: 30,
@@ -108,14 +142,24 @@ export const MANDATORY_ROLE_DISTRIBUTION: Record<PlayerRole, number> = {
  */
 export const PROVISIONAL_GAME_CONFIG = {
   scoringWeights: {
-    pts: 1.0,
-    reb: 1.2,
-    ast: 1.5,
-    stl: 2.5,
-    blk: 2.5,
-    tov: -1.5,
-    pf: -0.5,
-    min: 0.0,
+    pts: 1,
+    reb: 1,
+    ast: 1,
+    stl: 1,
+    blk: 1,
+    td: 4,
+    tov: -1,
+    pf: -1,
+    tf: -2,
+    ft1: -3,
+    ft2: -5,
+    min: 1,
+    ptsDivisor: DREAM5_NBA_SCORING_RULES.ptsPerPoint,
+    rebDivisor: DREAM5_NBA_SCORING_RULES.rebPerPoint,
+    astDivisor: DREAM5_NBA_SCORING_RULES.astPerPoint,
+    minDivisor: DREAM5_NBA_SCORING_RULES.minPerPoint,
+    minMaxPoints: DREAM5_NBA_SCORING_RULES.minMaxPoints,
+    minMaxMinutes: DREAM5_NBA_SCORING_RULES.minMaxMinutes,
   } satisfies ScoringWeightsConfig,
 
   lineupRules: {
@@ -131,7 +175,7 @@ export const PROVISIONAL_GAME_CONFIG = {
     questionableChancePerGame: 0.02,
     injuryDurationGamesMin: 1,
     injuryDurationGamesMax: 4,
-    /** PROVISIONAL: probabilidad diferenciada de expulsión según rol. */
+    /** PROVISIONAL: probabilidad diferenciada por rol (usada para descalificaciones por técnicas/flagrantes). */
     ejectionChanceByRole: {
       SUPERSTAR: 0.011,
       STAR: 0.009,
@@ -145,18 +189,18 @@ export const PROVISIONAL_GAME_CONFIG = {
   progression: {
     /** PROVISIONAL: evaluación cada N partidos jugados en temporada. */
     evaluateEveryGames: 5,
-    promoteMinFpDelta: 4.5,
-    demoteMaxFpDelta: -4.5,
+    promoteMinFpDelta: 2.5,
+    demoteMaxFpDelta: -2.5,
   },
 
   economyAndMarket: {
-    /** PROVISIONAL: presupuesto inicial estándar de cada equipo al crear liga. */
-    initialTeamBudgetMillions: 25.0,
-    /** Recompensa económica al ganador de cada partido: FP de la jornada x 1000. */
-    winRewardPerFantasyPoint: 1000,
+    /** PROVISIONAL: presupuesto inicial estándar de cada equipo al crear liga (escala x3). */
+    initialTeamBudgetMillions: 75.0,
+    /** Recompensa económica al ganador de cada partido: Dream Points de la jornada x 100.000. */
+    winRewardPerFantasyPoint: 100_000,
     hourlyRepriceSensitivity: 0.06,
-    minPlayerPriceMillions: 0.5,
-    maxPlayerPriceMillions: 45.0,
+    minPlayerPriceMillions: 1.5,
+    maxPlayerPriceMillions: 135.0,
     /** PROVISIONAL: criterio automático de equipos CPU ante ofertas válidas. */
     cpuAutoEvaluateEnabled: true,
     cpuAcceptMinRatio: 0.96,
@@ -196,3 +240,43 @@ export const THEME_MODES = ['dark', 'light'] as const;
 export const ACCENT_COLORS = ['orange', 'blue', 'green', 'red', 'pink', 'purple'] as const;
 
 export const SUPPORTED_LANGUAGES = ['en', 'es'] as const;
+
+/**
+ * Normaliza configuraciones de puntuación guardadas en BD hacia las reglas
+ * oficiales NBA de Dream Points (actualizando automáticamente ligas heredadas
+ * sin divisores configurados).
+ */
+export function parseLeagueScoringWeights(raw: unknown): ScoringWeightsConfig {
+  const defaults = PROVISIONAL_GAME_CONFIG.scoringWeights;
+  if (!raw || typeof raw !== 'object') {
+    return defaults;
+  }
+  const obj = raw as Record<string, unknown>;
+  if (typeof obj['ptsDivisor'] !== 'number' || !Number.isFinite(obj['ptsDivisor'])) {
+    return defaults;
+  }
+  const readNum = (key: keyof ScoringWeightsConfig): number => {
+    const val = obj[key];
+    return typeof val === 'number' && Number.isFinite(val) ? val : defaults[key];
+  };
+  return {
+    pts: readNum('pts'),
+    reb: readNum('reb'),
+    ast: readNum('ast'),
+    stl: readNum('stl'),
+    blk: readNum('blk'),
+    td: readNum('td'),
+    tov: readNum('tov'),
+    pf: readNum('pf'),
+    tf: readNum('tf'),
+    ft1: readNum('ft1'),
+    ft2: readNum('ft2'),
+    min: readNum('min'),
+    ptsDivisor: readNum('ptsDivisor'),
+    rebDivisor: readNum('rebDivisor'),
+    astDivisor: readNum('astDivisor'),
+    minDivisor: readNum('minDivisor'),
+    minMaxPoints: readNum('minMaxPoints'),
+    minMaxMinutes: readNum('minMaxMinutes'),
+  };
+}

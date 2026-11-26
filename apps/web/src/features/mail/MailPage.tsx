@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import {
   localizeDisciplineReason,
+  localizeDisqualificationReason,
   localizeTransferResponseNote,
   type LeagueMailCategory,
   type LeagueMailDto,
@@ -29,6 +30,7 @@ import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/toast-context';
 import { useDream5State } from '@/hooks/use-dream5-state';
 import { useI18n } from '@/hooks/use-i18n';
+import { formatMillions, formatStatNumber } from '@/lib/formatters';
 import { formatMsg, getLocaleCode } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { mailApi } from '@/services/dream5-api';
@@ -144,7 +146,7 @@ function localizeMailContent(
           : '';
       return {
         subject: `Jornada ${String(round)}: ${won ? 'Victoria' : 'Derrota'} ${venue} ${opponent} (${String(teamScore)}-${String(oppScore)}${otSuffix})`,
-        body: `Tu equipo disputó la Jornada ${String(round)} ${venue} ${opponent} con resultado ${String(teamScore)}-${String(oppScore)}${otSuffix} y sumó ${dp.toFixed(1)} Dream Points.${rewardTxt}`,
+        body: `Tu equipo disputó la Jornada ${String(round)} ${venue} ${opponent} con resultado ${String(teamScore)}-${String(oppScore)}${otSuffix} y sumó ${formatStatNumber(dp)} Dream Points.${rewardTxt}`,
       };
     }
 
@@ -153,7 +155,7 @@ function localizeMailContent(
       won && rewardUsd > 0 ? ` Win reward credited: $${rewardUsd.toLocaleString('en-US')}.` : '';
     return {
       subject: `Round ${String(round)}: ${won ? 'Victory' : 'Defeat'} ${venue} ${opponent} (${String(teamScore)}-${String(oppScore)}${otSuffix})`,
-      body: `Your club finished Round ${String(round)} ${venue} ${opponent} with a score of ${String(teamScore)}-${String(oppScore)}${otSuffix} and generated ${dp.toFixed(1)} Dream Points.${rewardTxt}`,
+      body: `Your club finished Round ${String(round)} ${venue} ${opponent} with a score of ${String(teamScore)}-${String(oppScore)}${otSuffix} and generated ${formatStatNumber(dp)} Dream Points.${rewardTxt}`,
     };
   }
 
@@ -181,8 +183,25 @@ function localizeMailContent(
     const playerName = str('playerName');
     const pos = str('playerPosition');
     const opponent = str('opponentTeamName');
-    const gamesOut = num('gamesOut', 1);
-    const reason = localizeDisciplineReason(str('reason'), language);
+    const gamesOut = num('gamesOut', 0);
+    const rawReason = str('reason');
+    const reason =
+      localizeDisqualificationReason(rawReason, language) ||
+      localizeDisciplineReason(rawReason, language);
+
+    if (gamesOut === 0) {
+      if (language === 'es') {
+        return {
+          subject: `Descalificación en partido (J${String(round)}): ${playerName}`,
+          body: `${playerName} (${pos}) quedó descalificado ante ${opponent} (${reason}) y dejó de acumular estadísticas desde ese momento. La descalificación solo aplica a ese partido.`,
+        };
+      }
+      return {
+        subject: `Match Disqualification (R${String(round)}): ${playerName}`,
+        body: `${playerName} (${pos}) was disqualified against ${opponent} (${reason}) and stopped accumulating stats from that moment. Disqualification applies only to that match.`,
+      };
+    }
+
     if (language === 'es') {
       return {
         subject: `Sanción disciplinaria (J${String(round)}): ${playerName} (${String(gamesOut)}P)`,
@@ -199,12 +218,12 @@ function localizeMailContent(
     if (language === 'es') {
       return {
         subject: `Retirada y alta de rookie (${str('teamName')}): ${str('retiredPlayerName')} -> ${str('rookiePlayerName')}`,
-        body: `${str('retiredPlayerName')} (${str('retiredPosition')}, ${String(num('retiredAge'))} años, OVR ${String(num('retiredOverall'))}) se ha retirado tras la temporada anterior. Tu franquicia incorpora al rookie ${str('rookiePlayerName')} (${str('rookiePosition')}, ${String(num('rookieAge'))} años, OVR ${String(num('rookieOverall'))}, $${num('rookiePriceMillions').toFixed(1)}M) para mantener los 18 jugadores en la Temporada ${String(num('seasonNumber'))}.`,
+        body: `${str('retiredPlayerName')} (${str('retiredPosition')}, ${String(num('retiredAge'))} años, OVR ${String(num('retiredOverall'))}) se ha retirado tras la temporada anterior. Tu franquicia incorpora al rookie ${str('rookiePlayerName')} (${str('rookiePosition')}, ${String(num('rookieAge'))} años, OVR ${String(num('rookieOverall'))}, ${formatMillions(num('rookiePriceMillions'))}) para mantener los 18 jugadores en la Temporada ${String(num('seasonNumber'))}.`,
       };
     }
     return {
       subject: `Retirement & Rookie Sign-Off (${str('teamName')}): ${str('retiredPlayerName')} -> ${str('rookiePlayerName')}`,
-      body: `${str('retiredPlayerName')} (${str('retiredPosition')}, age ${String(num('retiredAge'))}, OVR ${String(num('retiredOverall'))}) retired after last season. Your franchise promoted rookie ${str('rookiePlayerName')} (${str('rookiePosition')}, age ${String(num('rookieAge'))}, OVR ${String(num('rookieOverall'))}, $${num('rookiePriceMillions').toFixed(1)}M) to keep an 18-player roster in Season ${String(num('seasonNumber'))}.`,
+      body: `${str('retiredPlayerName')} (${str('retiredPosition')}, age ${String(num('retiredAge'))}, OVR ${String(num('retiredOverall'))}) retired after last season. Your franchise promoted rookie ${str('rookiePlayerName')} (${str('rookiePosition')}, age ${String(num('rookieAge'))}, OVR ${String(num('rookieOverall'))}, ${formatMillions(num('rookiePriceMillions'))}) to keep an 18-player roster in Season ${String(num('seasonNumber'))}.`,
     };
   }
 
@@ -225,12 +244,12 @@ function localizeMailContent(
     if (language === 'es') {
       return {
         subject: `Oferta enviada a ${str('receivingTeamName')}`,
-        body: `Enviaste una oferta a ${str('receivingTeamName')}: entregas a ${list('offeredPlayers')} ($${num('cashOfferedMillions').toFixed(1)}M) por ${list('requestedPlayers')} ($${num('cashRequestedMillions').toFixed(1)}M).`,
+        body: `Enviaste una oferta a ${str('receivingTeamName')}: entregas a ${list('offeredPlayers')} (${formatMillions(num('cashOfferedMillions'))}) por ${list('requestedPlayers')} (${formatMillions(num('cashRequestedMillions'))}).`,
       };
     }
     return {
       subject: `Trade Offer Sent to ${str('receivingTeamName')}`,
-      body: `You sent a trade offer to ${str('receivingTeamName')}: offering ${list('offeredPlayers')} ($${num('cashOfferedMillions').toFixed(1)}M) for ${list('requestedPlayers')} ($${num('cashRequestedMillions').toFixed(1)}M).`,
+      body: `You sent a trade offer to ${str('receivingTeamName')}: offering ${list('offeredPlayers')} (${formatMillions(num('cashOfferedMillions'))}) for ${list('requestedPlayers')} (${formatMillions(num('cashRequestedMillions'))}).`,
     };
   }
 
@@ -238,12 +257,12 @@ function localizeMailContent(
     if (language === 'es') {
       return {
         subject: `Nueva propuesta de traspaso de ${str('proposingTeamName')}`,
-        body: `${str('proposingTeamName')} te propone: ${list('offeredPlayers')} ($${num('cashOfferedMillions').toFixed(1)}M) a cambio de ${list('requestedPlayers')} ($${num('cashRequestedMillions').toFixed(1)}M).`,
+        body: `${str('proposingTeamName')} te propone: ${list('offeredPlayers')} (${formatMillions(num('cashOfferedMillions'))}) a cambio de ${list('requestedPlayers')} (${formatMillions(num('cashRequestedMillions'))}).`,
       };
     }
     return {
       subject: `New Trade Proposal from ${str('proposingTeamName')}`,
-      body: `${str('proposingTeamName')} sent a trade proposal: ${list('offeredPlayers')} ($${num('cashOfferedMillions').toFixed(1)}M) for ${list('requestedPlayers')} ($${num('cashRequestedMillions').toFixed(1)}M).`,
+      body: `${str('proposingTeamName')} sent a trade proposal: ${list('offeredPlayers')} (${formatMillions(num('cashOfferedMillions'))}) for ${list('requestedPlayers')} (${formatMillions(num('cashRequestedMillions'))}).`,
     };
   }
 
@@ -466,16 +485,16 @@ export function MailPage() {
               <div
                 key={mail.id}
                 className={cn(
-                  'flex flex-col gap-3 rounded-lg border bg-card p-4 transition-colors sm:flex-row sm:items-start sm:justify-between',
+                  'flex flex-col gap-2.5 rounded-lg border bg-card p-3 transition-colors sm:flex-row sm:items-start sm:justify-between sm:gap-3 sm:p-4',
                   mail.isRead
                     ? 'border-border/80 opacity-90'
                     : 'border-primary/40 bg-primary/[0.04]',
                 )}
               >
-                <div className="flex min-w-0 items-start gap-3">
+                <div className="flex min-w-0 items-start gap-2.5 sm:gap-3">
                   <div
                     className={cn(
-                      'mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-md border',
+                      'mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md border sm:h-9 sm:w-9',
                       mail.isRead
                         ? 'border-border bg-surface-deep text-muted-foreground'
                         : 'border-primary/35 bg-primary/15 text-primary',
@@ -484,8 +503,8 @@ export function MailPage() {
                     <Icon className="h-4 w-4" />
                   </div>
 
-                  <div className="min-w-0 space-y-1.5">
-                    <div className="flex flex-wrap items-center gap-2">
+                  <div className="min-w-0 flex-1 space-y-1 sm:space-y-1.5">
+                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                       {!mail.isRead ? (
                         <span aria-label="Unread" className="h-2 w-2 rounded-full bg-primary" />
                       ) : null}
@@ -498,17 +517,19 @@ export function MailPage() {
                         mail.category === 'SEASON_SUMMARY' ? (
                         <Badge variant="outline">{t.mailPage.preseasonTag}</Badge>
                       ) : null}
-                      <span className="text-[11px] text-muted-foreground">{dateStr}</span>
+                      <span className="text-[10px] text-muted-foreground sm:text-[11px]">
+                        {dateStr}
+                      </span>
                     </div>
 
                     <h3 className="text-sm font-semibold text-foreground">{localized.subject}</h3>
-                    <p className="text-sm leading-relaxed text-muted-foreground">
+                    <p className="text-xs leading-relaxed text-muted-foreground sm:text-sm">
                       {localized.body}
                     </p>
                   </div>
                 </div>
 
-                <div className="flex shrink-0 flex-wrap items-center gap-2 sm:flex-col sm:items-end">
+                <div className="flex shrink-0 items-center justify-between gap-2 border-t border-border/50 pt-2 sm:flex-col sm:items-end sm:border-t-0 sm:pt-0">
                   <Link
                     to={style.linkTo}
                     className="inline-flex h-8 items-center rounded-md border border-border bg-surface-deep px-2.5 text-xs font-medium text-foreground transition-colors hover:border-primary/40 hover:text-primary"

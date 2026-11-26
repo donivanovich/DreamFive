@@ -53,18 +53,6 @@ export function evaluateInGameDiscipline(params: {
     };
   }
 
-  const ejectionChance =
-    config.ejectionChanceByRole[player.role] * Math.max(0.6, minutesPlayed / 24);
-  if (rng.nextFloat() < ejectionChance) {
-    return {
-      ejected: true,
-      injured: false,
-      nextStatus: 'SUSPENDED',
-      nextGamesOut: 1,
-      reason: 'Ejection for double technical / flagrant foul (1 game)',
-    };
-  }
-
   if (rng.nextFloat() < config.questionableChancePerGame * ageFactor * workloadFactor) {
     return {
       ejected: false,

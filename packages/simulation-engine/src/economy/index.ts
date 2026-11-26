@@ -33,40 +33,40 @@ export function recalculateMarketPrices(params: {
 }): readonly MarketValuationResult[] {
   const { players, config } = params;
   const avgByPos: Record<EnginePosition, number> = {
-    PG: 15,
-    SG: 15,
-    SF: 15,
-    PF: 15,
-    C: 15,
+    PG: 5,
+    SG: 5,
+    SF: 5,
+    PF: 5,
+    C: 5,
   };
 
   for (const pos of ['PG', 'SG', 'SF', 'PF', 'C'] as const) {
-    const group = players.filter((p) => p.position === pos && p.avgFantasyPoints > 0);
+    const group = players.filter((p) => p.position === pos);
     if (group.length > 0) {
       avgByPos[pos] = group.reduce((acc, p) => acc + p.avgFantasyPoints, 0) / group.length;
     }
   }
 
   return players.map((player) => {
-    const positionalAvg = Math.max(10, avgByPos[player.position]);
+    const positionalAvg = Math.max(2.5, avgByPos[player.position]);
     const effectiveFp =
       player.lastRoundFantasyPoints !== null
         ? player.avgFantasyPoints * 0.72 + player.lastRoundFantasyPoints * 0.28
         : player.avgFantasyPoints;
     const relativePerf = (effectiveFp - positionalAvg) / positionalAvg;
     const ageMultiplier = player.age <= 22 ? 1.06 : player.age >= 32 ? 0.92 : 1;
-    const rawTarget = 2.38 * Math.pow(Math.max(0.5, effectiveFp) / 10, 1.72) * ageMultiplier;
+    const rawTarget = 12.6 * Math.pow(Math.max(0.2, effectiveFp + 1.5) / 4.5, 1.85) * ageMultiplier;
     const targetPrice = Math.max(
       config.minPriceMillions,
       Math.min(config.maxPriceMillions, rawTarget),
     );
     const convergenceGap =
-      (targetPrice - player.currentPriceMillions) / Math.max(2, player.currentPriceMillions);
+      (targetPrice - player.currentPriceMillions) / Math.max(6, player.currentPriceMillions);
     const recentHeat =
-      player.lastRoundFantasyPoints !== null && player.lastRoundFantasyPoints > 0
-        ? ((player.lastRoundFantasyPoints - Math.max(6, player.avgFantasyPoints)) /
-            Math.max(12, positionalAvg)) *
-          (config.sensitivity * 0.35)
+      player.lastRoundFantasyPoints !== null
+        ? ((player.lastRoundFantasyPoints - Math.max(1.5, player.avgFantasyPoints)) /
+            Math.max(4, positionalAvg)) *
+          (config.sensitivity * 0.45)
         : 0;
     const statusFactor =
       player.status === 'INJURED'

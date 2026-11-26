@@ -10,7 +10,7 @@ import {
 import { uiToContextTarget, usePlayerContextMenu } from '@/components/players/player-context';
 import { SortableHeaderCell } from '@/components/shared/SortableTable';
 import { useI18n } from '@/hooks/use-i18n';
-import { formatMillions } from '@/lib/formatters';
+import { formatMillions, formatStatNumber } from '@/lib/formatters';
 import { cycleThreeStateSort, sortItemsByState, type SortState } from '@/lib/table-sort';
 import { cn } from '@/lib/utils';
 import type { Player } from '@/types/fantasy';
@@ -215,7 +215,7 @@ export function PlayerTable({
                   <AvailabilityBadge status={player.status} />
                 </td>
                 <td className={cn(cellPad, 'text-right font-semibold text-primary tabular-nums')}>
-                  {player.stats.fpPerGame.toFixed(1)}
+                  {formatStatNumber(player.stats.fpPerGame)}
                 </td>
                 <td
                   className={cn(cellPad, 'text-right font-semibold text-foreground tabular-nums')}

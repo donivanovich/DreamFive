@@ -282,6 +282,15 @@ export function SettingsPage() {
                   <span className="font-semibold text-primary">{t.settings.ruleReward}</span>
                 </div>
               </div>
+
+              <div className="space-y-1.5 rounded-lg border border-border bg-surface-deep/75 p-3.5">
+                <p className="font-semibold tracking-wider text-foreground uppercase">
+                  {t.settings.nbaScoringTitle}
+                </p>
+                <p className="text-emerald-400/90">{t.settings.nbaScoringPositives}</p>
+                <p className="text-red-400/90">{t.settings.nbaScoringNegatives}</p>
+                <p className="text-muted-foreground">{t.settings.nbaScoringNotes}</p>
+              </div>
             </CardContent>
           </Card>
         </div>

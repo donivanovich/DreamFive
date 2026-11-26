@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import {
+  formatCleanDecimal,
   LEAGUE_RULES,
   type Position,
   PROVISIONAL_GAME_CONFIG,
@@ -558,6 +559,7 @@ export async function findActiveTransferBlocks(
   },
 ): Promise<readonly TransferCooldownEntry[]> {
   const rejectionCooldownMatches = PROVISIONAL_GAME_CONFIG.transfers.rejectionCooldownMatches;
+  const acquiredLockMatches = PROVISIONAL_GAME_CONFIG.transfers.acquiredPlayerLockMatches;
   const candidateSet =
     params.candidatePlayerIds && params.candidatePlayerIds.length > 0
       ? new Set(params.candidatePlayerIds)
@@ -607,9 +609,13 @@ export async function findActiveTransferBlocks(
     if (offer.rejectedAtTeamMatches === null) {
       continue;
     }
+    // Si el reloj fue sincronizado atrás revirtiendo jornadas/temporadas, ignoramos rechazos del futuro borrado
+    if (offer.rejectedAtTeamMatches > proposingTeamMatches) {
+      continue;
+    }
     const unlocksAtTeamMatches = offer.rejectedAtTeamMatches + rejectionCooldownMatches;
     const remainingMatches = unlocksAtTeamMatches - proposingTeamMatches;
-    if (remainingMatches <= 0) {
+    if (remainingMatches <= 0 || remainingMatches > rejectionCooldownMatches) {
       continue;
     }
 
@@ -649,7 +655,7 @@ export async function findActiveTransferBlocks(
       teamMatchesCache.set(locked.tradeLockTeamId, ownerMatches);
     }
     const remainingMatches = locked.tradeLockUntilTeamMatches - ownerMatches;
-    if (remainingMatches <= 0) {
+    if (remainingMatches <= 0 || remainingMatches > acquiredLockMatches) {
       continue;
     }
     const prev = activeByPlayer.get(locked.id);
@@ -836,7 +842,7 @@ export async function createAndEvaluateTransferOffer(
         roundNumber: null,
         category: 'TRANSFER_SENT',
         subject: `Trade Offer Sent to ${receivingTeam.name}`,
-        body: `Sent trade offer to ${receivingTeam.name}: offering ${offeredNames.join(', ')} ($${params.cashOfferedMillions.toFixed(1)}M) for ${requestedNames.join(', ')} ($${params.cashRequestedMillions.toFixed(1)}M).`,
+        body: `Sent trade offer to ${receivingTeam.name}: offering ${offeredNames.join(', ')} ($${formatCleanDecimal(params.cashOfferedMillions)}M) for ${requestedNames.join(', ')} ($${formatCleanDecimal(params.cashRequestedMillions)}M).`,
         metadata: offerMetadata,
       });
       if (!receivingTeam.isCpuControlled) {
@@ -847,7 +853,7 @@ export async function createAndEvaluateTransferOffer(
           roundNumber: null,
           category: 'TRANSFER_RECEIVED',
           subject: `New Trade Proposal from ${proposingTeam.name}`,
-          body: `${proposingTeam.name} sent a trade proposal: ${offeredNames.join(', ')} ($${params.cashOfferedMillions.toFixed(1)}M) for ${requestedNames.join(', ')} ($${params.cashRequestedMillions.toFixed(1)}M).`,
+          body: `${proposingTeam.name} sent a trade proposal: ${offeredNames.join(', ')} ($${formatCleanDecimal(params.cashOfferedMillions)}M) for ${requestedNames.join(', ')} ($${formatCleanDecimal(params.cashRequestedMillions)}M).`,
           metadata: offerMetadata,
         });
       }
@@ -980,12 +986,16 @@ export async function runAutonomousCpuTransfersInTx(
   }
 
   const rejectedBlockedByTeam = new Map<string, Set<string>>();
+  const acquiredLockMatches = PROVISIONAL_GAME_CONFIG.transfers.acquiredPlayerLockMatches;
   for (const rej of recentRejected) {
     if (rej.rejectedAtTeamMatches === null) {
       continue;
     }
     const teamMatches = completedMatchesByTeam.get(rej.proposingTeamId) ?? 0;
-    if (teamMatches < rej.rejectedAtTeamMatches + rejectionCooldownMatches) {
+    if (
+      rej.rejectedAtTeamMatches <= teamMatches &&
+      teamMatches < rej.rejectedAtTeamMatches + rejectionCooldownMatches
+    ) {
       const set = rejectedBlockedByTeam.get(rej.proposingTeamId) ?? new Set<string>();
       for (const pid of [...rej.offeredPlayerIds, ...rej.requestedPlayerIds]) {
         set.add(pid);
@@ -1003,7 +1013,8 @@ export async function runAutonomousCpuTransfersInTx(
       player.tradeLockUntilTeamMatches !== null
     ) {
       const ownerMatches = completedMatchesByTeam.get(player.currentTeamId) ?? 0;
-      if (ownerMatches < player.tradeLockUntilTeamMatches) {
+      const remaining = player.tradeLockUntilTeamMatches - ownerMatches;
+      if (remaining > 0 && remaining <= acquiredLockMatches) {
         return true;
       }
     }
@@ -1055,7 +1066,7 @@ export async function runAutonomousCpuTransfersInTx(
             !isBlockedForTeam(teamB.id, p) &&
             p.status !== 'INJURED' &&
             p.status !== 'SUSPENDED' &&
-            p.priceMillions >= 1.5,
+            p.priceMillions >= 4.5,
         ),
       )
       .slice(0, 8);
@@ -1067,7 +1078,7 @@ export async function runAutonomousCpuTransfersInTx(
             !isBlockedForTeam(teamB.id, p) &&
             p.status !== 'INJURED' &&
             p.status !== 'SUSPENDED' &&
-            p.priceMillions >= 1.5,
+            p.priceMillions >= 4.5,
         ),
       )
       .slice(0, 8);
@@ -1084,21 +1095,21 @@ export async function runAutonomousCpuTransfersInTx(
           }
         }
         const rawGap = Math.abs(pIn.priceMillions - pOut.priceMillions);
-        if (rawGap > (opts.allowCash ? 3.5 : 1.2)) {
+        if (rawGap > (opts.allowCash ? 10.5 : 3.6)) {
           continue;
         }
 
         let cashOffered = 0;
         let cashRequested = 0;
-        if (opts.allowCash && rawGap >= 0.3) {
-          const stepCash = Math.min(3.0, Math.max(0.1, roundToTenth(rawGap)));
+        if (opts.allowCash && rawGap >= 0.9) {
+          const stepCash = Math.min(9.0, Math.max(0.1, roundToTenth(rawGap)));
           if (pIn.priceMillions > pOut.priceMillions) {
-            const maxSafeCash = roundToTenth(Math.max(0, teamA.budgetMillions - 2.0));
+            const maxSafeCash = roundToTenth(Math.max(0, teamA.budgetMillions - 6.0));
             if (maxSafeCash >= 0.1) {
               cashOffered = Math.min(stepCash, maxSafeCash);
             }
           } else {
-            const maxSafeCash = roundToTenth(Math.max(0, teamB.budgetMillions - 2.0));
+            const maxSafeCash = roundToTenth(Math.max(0, teamB.budgetMillions - 6.0));
             if (maxSafeCash >= 0.1) {
               cashRequested = Math.min(stepCash, maxSafeCash);
             }
@@ -1244,7 +1255,7 @@ export async function runAutonomousCpuTransfersInTx(
         roundNumber: params.roundNumber,
         category: 'TRANSFER_RECEIVED',
         subject: `Incoming CPU Proposal from ${cpuTeam.name}`,
-        body: `${cpuTeam.name} proposed a trade: ${proposal.outPlayer.name} ($${proposal.cashOffered.toFixed(1)}M) for your ${proposal.inPlayer.name} ($${proposal.cashRequested.toFixed(1)}M).`,
+        body: `${cpuTeam.name} proposed a trade: ${proposal.outPlayer.name} ($${formatCleanDecimal(proposal.cashOffered)}M) for your ${proposal.inPlayer.name} ($${formatCleanDecimal(proposal.cashRequested)}M).`,
         metadata: {
           offerId: createdProposal.id,
           proposingTeamId: cpuTeam.id,

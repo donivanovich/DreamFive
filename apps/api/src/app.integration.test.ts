@@ -776,8 +776,39 @@ describeIfInfra('Integración HTTP Full Stack de DREAM5 API (NestJS + Fastify)',
     });
     expect(badSmallCashRes.statusCode).toBe(400);
 
-    const otherA = rosterA.find((p) => p.id !== offP.id && p.position === 'SG');
-    const otherB = rosterB.find((p) => p.id !== reqP.id && p.position === 'SG');
+    const [freshTeamARes, freshTeamBRes] = await Promise.all([
+      server.inject({
+        method: 'GET',
+        url: `/leagues/${leagueCreated.leagueId}/teams/${leagueCreated.assignedTeamId}`,
+        headers: { authorization: `Bearer ${bodyA.accessToken}` },
+      }),
+      server.inject({
+        method: 'GET',
+        url: `/leagues/${leagueCreated.leagueId}/teams/${teamBId}`,
+        headers: { authorization: `Bearer ${bodyA.accessToken}` },
+      }),
+    ]);
+    const freshRosterA = freshTeamARes.json<{
+      readonly roster: readonly {
+        readonly id: string;
+        readonly position: string;
+        readonly priceMillions: number;
+      }[];
+    }>().roster;
+    const freshRosterB = freshTeamBRes.json<{
+      readonly roster: readonly {
+        readonly id: string;
+        readonly position: string;
+        readonly priceMillions: number;
+      }[];
+    }>().roster;
+
+    const otherA = freshRosterA
+      .filter((p) => p.id !== offP.id && p.id !== reqP.id && p.position === 'SG')
+      .sort((a, b) => b.priceMillions - a.priceMillions)[0];
+    const otherB = freshRosterB
+      .filter((p) => p.id !== offP.id && p.id !== reqP.id && p.position === 'SG')
+      .sort((a, b) => a.priceMillions - b.priceMillions)[0];
     if (otherA && otherB) {
       const decimalCashRes = await server.inject({
         method: 'POST',
@@ -957,6 +988,26 @@ describeIfInfra('Integración HTTP Full Stack de DREAM5 API (NestJS + Fastify)',
     if (futureMatch) {
       expect(syncBody.revertedMatchesCount).toBeGreaterThanOrEqual(1);
     }
+    const statusAfterSyncRes = await server.inject({
+      method: 'GET',
+      url: `/dev/leagues/${leagueCreated.leagueId}/status`,
+      headers: { authorization: `Bearer ${ivan.accessToken}` },
+    });
+    expect(statusAfterSyncRes.statusCode).toBe(200);
+    const statusAfterSync = statusAfterSyncRes.json<{
+      readonly serverTimeIso: string;
+      readonly serverTimeZone: string;
+      readonly isAccelerated: boolean;
+      readonly workerOnline: boolean;
+      readonly nextScheduledMatchAt: string | null;
+      readonly nextScheduledMatchLabel: string | null;
+    }>();
+    expect(Number.isFinite(Date.parse(statusAfterSync.serverTimeIso))).toBe(true);
+    expect(statusAfterSync.serverTimeZone.length).toBeGreaterThan(0);
+    expect(statusAfterSync.isAccelerated).toBe(false);
+    expect(typeof statusAfterSync.workerOnline).toBe('boolean');
+    expect(statusAfterSync.nextScheduledMatchAt).not.toBeNull();
+    expect(statusAfterSync.nextScheduledMatchLabel).toContain('@');
     const postSyncLeague = await prisma.client.league.findUnique({
       where: { id: leagueCreated.leagueId },
     });

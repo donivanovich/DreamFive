@@ -1,27 +1,34 @@
 import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
-import { Logger } from '@nestjs/common';
+import { Inject, Logger } from '@nestjs/common';
 import {
-  recalculateRoundStandingsInTx,
-  repriceLeagueMarket,
-  runAutonomousCpuTransfersInTx,
+  expirePendingTransferOffers,
   simulateRoundForLeague,
-  simulateSingleMatchInTx,
+  simulateScheduledMatchAndProgress,
 } from '@dream5/database';
 import { JOB_NAMES, QUEUE_NAMES, SOCKET_EVENTS } from '@dream5/shared';
 import type { Job, Queue } from 'bullmq';
+import type { Redis } from 'ioredis';
 
 import { WorkerPrismaService } from '../database/worker-prisma.service.js';
-import { RealtimePublisherService } from '../redis/worker-redis.module.js';
-import type { SimulateMatchJobData, SimulateRoundJobData } from './job-payloads.js';
+import { RealtimePublisherService, WORKER_REDIS_CLIENT } from '../redis/worker-redis.module.js';
+import type {
+  SeasonRolloverJobData,
+  SimulateMatchJobData,
+  SimulateRoundJobData,
+} from './job-payloads.js';
+import { computeNextLeagueClock } from './simulation-clock.js';
 
-@Processor(QUEUE_NAMES.simulation)
+@Processor(QUEUE_NAMES.simulation, { concurrency: 1 })
 export class SimulationProcessor extends WorkerHost {
   private readonly logger = new Logger(SimulationProcessor.name);
+  private readonly wallClockByLeague = new Map<string, number>();
 
   constructor(
     private readonly prisma: WorkerPrismaService,
     private readonly realtime: RealtimePublisherService,
     @InjectQueue(QUEUE_NAMES.simulation) private readonly simulationQueue: Queue,
+    @InjectQueue(QUEUE_NAMES.seasons) private readonly seasonsQueue: Queue,
+    @Inject(WORKER_REDIS_CLIENT) private readonly redis: Redis,
   ) {
     super();
   }
@@ -40,8 +47,90 @@ export class SimulationProcessor extends WorkerHost {
     return null;
   }
 
-  private async handleSchedulerTick(): Promise<{ readonly scheduledRoundsQueued: number }> {
-    const now = Date.now();
+  private async readPreviousWallMs(leagueId: string): Promise<number | undefined> {
+    const cached = this.wallClockByLeague.get(leagueId);
+    if (cached !== undefined) {
+      return cached;
+    }
+    try {
+      if (this.redis.status === 'wait') {
+        await this.redis.connect();
+      }
+      const raw = await this.redis.get(`dream5:worker:clock-wall:${leagueId}`);
+      if (!raw) {
+        return undefined;
+      }
+      const parsed = Number.parseInt(raw, 10);
+      return Number.isFinite(parsed) ? parsed : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private async persistWallMs(leagueId: string, nowMs: number): Promise<void> {
+    this.wallClockByLeague.set(leagueId, nowMs);
+    try {
+      if (this.redis.status === 'wait') {
+        await this.redis.connect();
+      }
+      await this.redis.set(
+        `dream5:worker:clock-wall:${leagueId}`,
+        String(nowMs),
+        'EX',
+        7 * 24 * 3600,
+      );
+    } catch {
+      // Mantiene seguimiento en memoria si Redis no aceptó el comando puntual.
+    }
+  }
+
+  private async publishRoundClosedEvents(leagueId: string, roundNumber: number): Promise<void> {
+    const ts = new Date().toISOString();
+    await Promise.all([
+      this.realtime.publishLeagueEvent({
+        leagueId,
+        eventType: SOCKET_EVENTS.roundCompleted,
+        roundNumber,
+        timestamp: ts,
+      }),
+      this.realtime.publishLeagueEvent({
+        leagueId,
+        eventType: SOCKET_EVENTS.marketUpdated,
+        roundNumber,
+        timestamp: ts,
+      }),
+      this.realtime.publishLeagueEvent({
+        leagueId,
+        eventType: SOCKET_EVENTS.transferUpdated,
+        roundNumber,
+        timestamp: ts,
+      }),
+      this.realtime.publishLeagueEvent({
+        leagueId,
+        eventType: SOCKET_EVENTS.mailUpdated,
+        roundNumber,
+        timestamp: ts,
+      }),
+    ]);
+  }
+
+  private async enqueueAutoSeasonRollover(leagueId: string, seasonId: string): Promise<void> {
+    await this.seasonsQueue.add(
+      JOB_NAMES.seasonRollover,
+      {
+        leagueId,
+        expectedSeasonId: seasonId,
+      } satisfies SeasonRolloverJobData,
+      {
+        jobId: `rollover_${leagueId}_${seasonId}`,
+        removeOnComplete: true,
+        removeOnFail: { count: 10 },
+      },
+    );
+  }
+
+  private async handleSchedulerTick(): Promise<{ readonly scheduledMatchesQueued: number }> {
+    const nowMs = Date.now();
     const activeLeagues = await this.prisma.client.league.findMany({
       where: { status: 'ACTIVE' },
       include: {
@@ -53,7 +142,7 @@ export class SimulationProcessor extends WorkerHost {
       },
     });
 
-    let scheduledRoundsQueued = 0;
+    let scheduledMatchesQueued = 0;
 
     for (const league of activeLeagues) {
       const activeSeason = league.seasons[0];
@@ -61,46 +150,79 @@ export class SimulationProcessor extends WorkerHost {
         continue;
       }
 
-      // Tiempo real 1:1 desde el último tick registrado para permitir operación 24/7
-      const elapsedMs = Math.max(0, Math.min(24 * 3600_000, now - league.updatedAt.getTime()));
-      const nextGameClock = new Date(league.gameClockAt.getTime() + elapsedMs);
-
-      await this.prisma.client.league.update({
-        where: { id: league.id },
-        data: { gameClockAt: nextGameClock },
+      const prevWallMs = await this.readPreviousWallMs(league.id);
+      const nextGameClock = computeNextLeagueClock({
+        currentGameClockAt: league.gameClockAt,
+        seasonStartedAt: activeSeason.startedAt,
+        isAccelerated: league.isAccelerated,
+        ...(prevWallMs !== undefined ? { prevWallMs } : {}),
+        nowMs,
       });
+      await this.persistWallMs(league.id, nowMs);
 
-      const dueRounds = await this.prisma.client.match.findMany({
+      if (Math.abs(nextGameClock.getTime() - league.gameClockAt.getTime()) >= 500) {
+        await this.prisma.client.league.update({
+          where: { id: league.id },
+          data: { gameClockAt: nextGameClock },
+        });
+        await this.realtime.publishLeagueEvent({
+          leagueId: league.id,
+          eventType: SOCKET_EVENTS.clockUpdated,
+          timestamp: nextGameClock.toISOString(),
+        });
+      }
+
+      const dueMatches = await this.prisma.client.match.findMany({
         where: {
           leagueId: league.id,
           seasonId: activeSeason.id,
           status: 'SCHEDULED',
           scheduledAt: { lte: nextGameClock },
         },
-        distinct: ['roundNumber'],
-        select: { roundNumber: true },
-        orderBy: { roundNumber: 'asc' },
+        select: { id: true },
+        orderBy: [{ roundNumber: 'asc' }, { scheduledAt: 'asc' }],
+        take: 45,
       });
 
-      for (const r of dueRounds) {
-        const bullJobId = `sim_${league.id}_${activeSeason.id}_r${String(r.roundNumber)}`;
+      for (const m of dueMatches) {
         await this.simulationQueue.add(
-          JOB_NAMES.simulateRound,
+          JOB_NAMES.simulateMatch,
           {
             leagueId: league.id,
-            roundNumber: r.roundNumber,
-          } satisfies SimulateRoundJobData,
+            matchId: m.id,
+          } satisfies SimulateMatchJobData,
           {
-            jobId: bullJobId,
-            removeOnComplete: 50,
-            removeOnFail: 20,
+            jobId: `sim_match_${m.id}`,
+            removeOnComplete: true,
+            removeOnFail: { count: 20 },
           },
         );
-        scheduledRoundsQueued += 1;
+        scheduledMatchesQueued += 1;
+      }
+
+      const expiredOffersPending = await this.prisma.client.transferOffer.count({
+        where: {
+          leagueId: league.id,
+          status: 'PENDING',
+          expiresAt: { lte: new Date(nowMs) },
+        },
+      });
+      if (expiredOffersPending > 0) {
+        const { expiredCount } = await expirePendingTransferOffers(this.prisma.client, {
+          leagueId: league.id,
+          asOf: new Date(nowMs),
+        });
+        if (expiredCount > 0) {
+          await this.realtime.publishLeagueEvent({
+            leagueId: league.id,
+            eventType: SOCKET_EVENTS.transferUpdated,
+            timestamp: new Date().toISOString(),
+          });
+        }
       }
     }
 
-    return { scheduledRoundsQueued };
+    return { scheduledMatchesQueued };
   }
 
   private async handleSimulateRound(
@@ -138,38 +260,28 @@ export class SimulationProcessor extends WorkerHost {
         },
       });
 
-      await this.realtime.publishLeagueEvent({
-        leagueId: data.leagueId,
-        eventType: SOCKET_EVENTS.roundCompleted,
-        roundNumber: result.roundNumber,
-        timestamp: new Date().toISOString(),
-      });
-      await this.realtime.publishLeagueEvent({
-        leagueId: data.leagueId,
-        eventType: SOCKET_EVENTS.standingsUpdated,
-        roundNumber: result.roundNumber,
-        timestamp: new Date().toISOString(),
-      });
+      const ts = new Date().toISOString();
+      await Promise.all([
+        this.realtime.publishLeagueEvent({
+          leagueId: data.leagueId,
+          eventType: SOCKET_EVENTS.matchUpdated,
+          roundNumber: result.roundNumber,
+          timestamp: ts,
+        }),
+        this.realtime.publishLeagueEvent({
+          leagueId: data.leagueId,
+          eventType: SOCKET_EVENTS.standingsUpdated,
+          roundNumber: result.roundNumber,
+          timestamp: ts,
+        }),
+      ]);
 
       if (result.matchesSimulated > 0) {
-        await this.realtime.publishLeagueEvent({
-          leagueId: data.leagueId,
-          eventType: SOCKET_EVENTS.marketUpdated,
-          roundNumber: result.roundNumber,
-          timestamp: new Date().toISOString(),
-        });
-        await this.realtime.publishLeagueEvent({
-          leagueId: data.leagueId,
-          eventType: SOCKET_EVENTS.transferUpdated,
-          roundNumber: result.roundNumber,
-          timestamp: new Date().toISOString(),
-        });
-        await this.realtime.publishLeagueEvent({
-          leagueId: data.leagueId,
-          eventType: SOCKET_EVENTS.mailUpdated,
-          roundNumber: result.roundNumber,
-          timestamp: new Date().toISOString(),
-        });
+        await this.publishRoundClosedEvents(data.leagueId, result.roundNumber);
+      }
+
+      if (result.seasonCompleted) {
+        await this.enqueueAutoSeasonRollover(data.leagueId, result.seasonId);
       }
 
       return { matchesSimulated: result.matchesSimulated };
@@ -207,21 +319,10 @@ export class SimulationProcessor extends WorkerHost {
         });
 
     try {
-      const outcome = await this.prisma.client.$transaction(
-        async (tx) => {
-          const matchRes = await simulateSingleMatchInTx(tx, {
-            leagueId: data.leagueId,
-            matchId: data.matchId,
-          });
-          await recalculateRoundStandingsInTx(tx, {
-            leagueId: data.leagueId,
-            seasonId: matchRes.seasonId,
-            roundNumber: matchRes.roundNumber,
-          });
-          return matchRes;
-        },
-        { timeout: 30000, maxWait: 10000 },
-      );
+      const outcome = await simulateScheduledMatchAndProgress(this.prisma.client, {
+        leagueId: data.leagueId,
+        matchId: data.matchId,
+      });
 
       await this.prisma.client.simulationJob.update({
         where: { id: jobRecord.id },
@@ -233,68 +334,31 @@ export class SimulationProcessor extends WorkerHost {
         },
       });
 
-      await this.realtime.publishLeagueEvent({
-        leagueId: data.leagueId,
-        eventType: SOCKET_EVENTS.matchUpdated,
-        roundNumber: outcome.roundNumber,
-        matchId: outcome.matchId,
-        timestamp: new Date().toISOString(),
-      });
-      await this.realtime.publishLeagueEvent({
-        leagueId: data.leagueId,
-        eventType: SOCKET_EVENTS.standingsUpdated,
-        roundNumber: outcome.roundNumber,
-        timestamp: new Date().toISOString(),
-      });
-
-      const remainingInRound = await this.prisma.client.match.count({
-        where: {
-          leagueId: data.leagueId,
-          seasonId: outcome.seasonId,
-          roundNumber: outcome.roundNumber,
-          status: 'SCHEDULED',
-        },
-      });
-      if (remainingInRound === 0) {
-        await this.prisma.client.season.update({
-          where: { id: outcome.seasonId },
-          data: { currentRoundNumber: outcome.roundNumber },
-        });
-        await repriceLeagueMarket(this.prisma.client, {
-          leagueId: data.leagueId,
-          reason: `Post-jornada ${String(outcome.roundNumber)}`,
-        });
-        await this.prisma.client.$transaction((tx) =>
-          runAutonomousCpuTransfersInTx(tx, {
+      if (!outcome.alreadyCompleted) {
+        const ts = new Date().toISOString();
+        await Promise.all([
+          this.realtime.publishLeagueEvent({
             leagueId: data.leagueId,
-            seasonId: outcome.seasonId,
+            eventType: SOCKET_EVENTS.matchUpdated,
             roundNumber: outcome.roundNumber,
+            matchId: outcome.matchId,
+            timestamp: ts,
           }),
-        );
-        await this.realtime.publishLeagueEvent({
-          leagueId: data.leagueId,
-          eventType: SOCKET_EVENTS.roundCompleted,
-          roundNumber: outcome.roundNumber,
-          timestamp: new Date().toISOString(),
-        });
-        await this.realtime.publishLeagueEvent({
-          leagueId: data.leagueId,
-          eventType: SOCKET_EVENTS.marketUpdated,
-          roundNumber: outcome.roundNumber,
-          timestamp: new Date().toISOString(),
-        });
-        await this.realtime.publishLeagueEvent({
-          leagueId: data.leagueId,
-          eventType: SOCKET_EVENTS.transferUpdated,
-          roundNumber: outcome.roundNumber,
-          timestamp: new Date().toISOString(),
-        });
-        await this.realtime.publishLeagueEvent({
-          leagueId: data.leagueId,
-          eventType: SOCKET_EVENTS.mailUpdated,
-          roundNumber: outcome.roundNumber,
-          timestamp: new Date().toISOString(),
-        });
+          this.realtime.publishLeagueEvent({
+            leagueId: data.leagueId,
+            eventType: SOCKET_EVENTS.standingsUpdated,
+            roundNumber: outcome.roundNumber,
+            timestamp: ts,
+          }),
+        ]);
+      }
+
+      if (outcome.roundCompleted) {
+        await this.publishRoundClosedEvents(data.leagueId, outcome.roundNumber);
+      }
+
+      if (outcome.seasonCompleted) {
+        await this.enqueueAutoSeasonRollover(data.leagueId, outcome.seasonId);
       }
 
       return { homeScore: outcome.homeScore, awayScore: outcome.awayScore };
