@@ -1,6 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
-  "display": "DREAM5 — librería Node.js (ESM)",
+  "display": "DreamFive — librería Node.js (ESM)",
   "extends": "./base.json",
   "compilerOptions": {
     "module": "NodeNext",

@@ -11,7 +11,7 @@ describe('parseWorkerEnv', () => {
   it('aplica valores por defecto', () => {
     const env = parseWorkerEnv(validWorkerEnv);
     expect(env.REDIS_PORT).toBe(6379);
-    expect(env.QUEUE_PREFIX).toBe('dream5');
+    expect(env.QUEUE_PREFIX).toBe('dreamfive');
     expect(env.WORKER_HEARTBEAT_INTERVAL_MS).toBe(10_000);
     expect(env.WORKER_SCHEDULER_INTERVAL_MS).toBe(30_000);
   });

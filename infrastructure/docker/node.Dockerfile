@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 # -----------------------------------------------------------------------------
-# DREAM5 — imagen de las aplicaciones Node.js del monorepo.
+# DreamFive — imagen de las aplicaciones Node.js del monorepo.
 #
 # Un único Dockerfile multi-etapa genera tres imágenes de ejecución
 # independientes mediante --target: `api`, `worker` y `web`.
@@ -45,9 +45,9 @@ ENV VITE_API_URL=${VITE_API_URL} \
     VITE_PUBLIC_URL=${VITE_PUBLIC_URL} \
     VITE_DEV_TOOLS_ENABLED=${VITE_DEV_TOOLS_ENABLED}
 RUN pnpm run build \
- && pnpm --filter @dream5/api deploy --prod --legacy /out/api \
- && pnpm --filter @dream5/worker deploy --prod --legacy /out/worker \
- && pnpm --filter @dream5/web deploy --prod --legacy /out/web
+ && pnpm --filter @dreamfive/api deploy --prod --legacy /out/api \
+ && pnpm --filter @dreamfive/worker deploy --prod --legacy /out/worker \
+ && pnpm --filter @dreamfive/web deploy --prod --legacy /out/web
 
 # --- Migraciones automáticas al arrancar Compose ------------------------------
 FROM build AS migrate

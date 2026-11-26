@@ -11,7 +11,7 @@ import type {
   Position,
   TransferBlockReason,
   TransferStatus,
-} from '@dream5/shared';
+} from '@dreamfive/shared';
 
 import type { AvailabilityStatus, PlayerRole, TradeOffer } from '@/types/fantasy';
 
@@ -125,24 +125,23 @@ export const TRANSLATIONS = {
       emailLabel: 'Email',
       usernameLabel: 'Manager name',
       passwordLabel: 'Password',
-      signInBtn: 'Sign in to DREAM5',
+      signInBtn: 'Sign in to DreamFive',
       signingInBtn: 'Signing in...',
       registerBtn: 'Create account & send code',
       registeringBtn: 'Creating account...',
       verifyTitle: 'Verify your email',
       verifyDescPrefix: 'Enter the 6-digit verification code sent to',
       verifyCodeLabel: '6-digit verification code',
-      verifyBtn: 'Verify & enter DREAM5',
+      verifyBtn: 'Verify & enter DreamFive',
       verifyingBtn: 'Verifying...',
       resendBtn: 'Resend code',
       resendingBtn: 'Sending...',
       backToAuthBtn: 'Back to sign in',
       verifySentToast: 'Verification code sent to your inbox.',
-      verifySuccessToast: 'Email verified. Welcome to DREAM5!',
+      verifySuccessToast: 'Email verified. Welcome to DreamFive!',
       resendSuccessToast: 'A new 6-digit verification code has been sent.',
       unverifiedPrompt: 'Your account email is not verified yet. Enter your 6-digit code below.',
-      demoTitle: 'Quick demo accounts',
-      adminRoleNote: 'Simulation Admin',
+      demoTitle: 'Quick demo account',
       userRoleNote: 'Manager',
     },
     changePassword: {
@@ -151,7 +150,7 @@ export const TRANSLATIONS = {
       validatingDesc: 'Verifying your one-time password reset token.',
       blockedMissingTitle: 'Direct access unavailable',
       blockedMissingDesc:
-        'This page can only be opened from the password change email sent from your DREAM5 profile.',
+        'This page can only be opened from the password change email sent from your DreamFive profile.',
       blockedInvalidTitle: 'Invalid or expired link',
       blockedInvalidDesc:
         'This password reset link is invalid, expired, or has already been used. Request a new one from your profile.',
@@ -164,7 +163,7 @@ export const TRANSLATIONS = {
       submitBtn: 'Save new password',
       submittingBtn: 'Updating...',
       successTitle: 'Password updated',
-      successDesc: 'Your DREAM5 password has been changed cleanly. You can now sign in.',
+      successDesc: 'Your DreamFive password has been changed cleanly. You can now sign in.',
     },
     profile: {
       title: 'Manager Profile',
@@ -242,7 +241,7 @@ export const TRANSLATIONS = {
       lineupReminderDesc: 'Display lineup lock notice before the next scheduled round.',
       compactTablesLabel: 'Compact player tables',
       compactTablesDesc: 'Tighter row padding to view more players at a glance.',
-      engineSummaryTitle: 'Current DREAM5 Universe Rules',
+      engineSummaryTitle: 'Current DreamFive Universe Rules',
       ruleLabelLineup: 'Scoring lineup',
       ruleLineup: '5 scoring starters per round',
       ruleLabelRoster: 'Roster size',
@@ -304,7 +303,7 @@ export const TRANSLATIONS = {
       inviteByTagBtn: 'Invite by tag',
       createLeagueBtn: 'Create new league',
       presidencyLimitNotice:
-        'You already preside over an active league. DREAM5 allows at most one active presidency at a time, while letting you join other leagues as a member.',
+        'You already preside over an active league. DreamFive allows at most one active presidency at a time, while letting you join other leagues as a member.',
       pendingInvitesTitle: 'Pending invitations',
       invitedBy: 'Invited by {name} · Target tag {tag}',
       acceptAssignNote:
@@ -845,7 +844,7 @@ export const TRANSLATIONS = {
       emailLabel: 'Correo electrónico',
       usernameLabel: 'Nombre de mánager',
       passwordLabel: 'Contraseña',
-      signInBtn: 'Entrar en DREAM5',
+      signInBtn: 'Entrar en DreamFive',
       signingInBtn: 'Accediendo...',
       registerBtn: 'Crear cuenta y enviar código',
       registeringBtn: 'Creando cuenta...',
@@ -858,11 +857,10 @@ export const TRANSLATIONS = {
       resendingBtn: 'Enviando...',
       backToAuthBtn: 'Volver al acceso',
       verifySentToast: 'Código de verificación enviado a tu correo.',
-      verifySuccessToast: 'Correo verificado. ¡Bienvenido a DREAM5!',
+      verifySuccessToast: 'Correo verificado. ¡Bienvenido a DreamFive!',
       resendSuccessToast: 'Se ha enviado un nuevo código de 6 dígitos.',
       unverifiedPrompt: 'Tu correo aún no está verificado. Introduce tu código de 6 dígitos.',
-      demoTitle: 'Cuentas demo rápidas',
-      adminRoleNote: 'Admin simulación',
+      demoTitle: 'Cuenta demo rápida',
       userRoleNote: 'Mánager',
     },
     changePassword: {
@@ -871,7 +869,7 @@ export const TRANSLATIONS = {
       validatingDesc: 'Comprobando tu token de un solo uso para cambiar la contraseña.',
       blockedMissingTitle: 'Acceso directo bloqueado',
       blockedMissingDesc:
-        'Solo puedes acceder a esta página desde el botón del correo enviado desde tu perfil de DREAM5.',
+        'Solo puedes acceder a esta página desde el botón del correo enviado desde tu perfil de DreamFive.',
       blockedInvalidTitle: 'Enlace no válido o caducado',
       blockedInvalidDesc:
         'Este enlace ya se ha utilizado, ha caducado o no es válido. Solicita uno nuevo desde tu perfil.',
@@ -884,7 +882,7 @@ export const TRANSLATIONS = {
       submitBtn: 'Guardar nueva contraseña',
       submittingBtn: 'Actualizando...',
       successTitle: 'Contraseña actualizada',
-      successDesc: 'Tu contraseña de DREAM5 se ha cambiado correctamente.',
+      successDesc: 'Tu contraseña de DreamFive se ha cambiado correctamente.',
     },
     profile: {
       title: 'Perfil de mánager',
@@ -962,7 +960,7 @@ export const TRANSLATIONS = {
       lineupReminderDesc: 'Muestra el estado de apertura/cierre antes de la jornada.',
       compactTablesLabel: 'Tablas de jugadores compactas',
       compactTablesDesc: 'Reduce el espaciado vertical para ver más filas de un vistazo.',
-      engineSummaryTitle: 'Reglas del motor DREAM5 activo',
+      engineSummaryTitle: 'Reglas del motor DreamFive activo',
       ruleLabelLineup: 'Quinteto puntuable',
       ruleLineup: '5 titulares puntuables por jornada',
       ruleLabelRoster: 'Tamaño de plantilla',
@@ -1024,7 +1022,7 @@ export const TRANSLATIONS = {
       inviteByTagBtn: 'Invitar por etiqueta',
       createLeagueBtn: 'Crear nueva liga',
       presidencyLimitNotice:
-        'Ya eres presidente de una liga activa. Según las reglas de DREAM5, un usuario puede presidir como máximo una liga activa simultánea, aunque puede aceptar invitaciones como miembro en otras ligas.',
+        'Ya eres presidente de una liga activa. Según las reglas de DreamFive, un usuario puede presidir como máximo una liga activa simultánea, aunque puede aceptar invitaciones como miembro en otras ligas.',
       pendingInvitesTitle: 'Invitaciones pendientes',
       invitedBy: 'Invitado por {name} · Etiqueta destino {tag}',
       acceptAssignNote:

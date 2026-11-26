@@ -31,7 +31,7 @@ import {
   updatePreferencesSchema,
   type UpdateProfileInput,
   updateProfileSchema,
-} from '@dream5/shared';
+} from '@dreamfive/shared';
 
 import { CurrentUser, RateLimitGuard, SessionAuthGuard } from '../../common/auth.guards.js';
 import { buildClearedCookieHeader } from '../../common/http-cookies.js';

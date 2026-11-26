@@ -1,5 +1,5 @@
 {
-  "extends": "@dream5/config/typescript/node-library.json",
+  "extends": "@dreamfive/config/typescript/node-library.json",
   "compilerOptions": {
     "rootDir": ".",
     "noEmit": true

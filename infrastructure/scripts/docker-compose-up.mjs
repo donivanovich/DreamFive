@@ -24,7 +24,7 @@ const ROOT_DIR = resolve(import.meta.dirname, '../..');
 const ENV_FILE = resolve(ROOT_DIR, '.env');
 
 /**
- * Lee los puertos publicados actualmente por contenedores del proyecto `dream5`
+ * Lee los puertos publicados actualmente por contenedores del proyecto `dreamfive`
  * para reutilizarlos al recrear/reconstruir sin saltar a otro puerto del rango.
  *
  * @param {string[]} composeFileArgs
@@ -163,7 +163,7 @@ async function main() {
   const resolved = await resolveServicePorts(services);
   const overrides = buildComposeEnvOverrides({ env: mergedEnv, resolved });
 
-  process.stdout.write('[DREAM5 Docker] Puertos resueltos:\n');
+  process.stdout.write('[DreamFive Docker] Puertos resueltos:\n');
   for (const item of resolved) {
     const statusLabel = item.fallbackUsed
       ? `puerto ${String(item.preferredPort)} en uso -> asignado ${String(item.assignedPort)} (rango ${String(item.range.start)}-${String(item.range.end)})`
@@ -194,7 +194,7 @@ async function main() {
 
   if (child.error) {
     process.stderr.write(
-      `[DREAM5 Docker] Error al ejecutar docker compose: ${child.error.message}\n`,
+      `[DreamFive Docker] Error al ejecutar docker compose: ${child.error.message}\n`,
     );
     process.exit(1);
   }
@@ -204,6 +204,6 @@ async function main() {
 
 main().catch((error) => {
   const message = error instanceof Error ? error.message : String(error);
-  process.stderr.write(`[DREAM5 Docker] ${message}\n`);
+  process.stderr.write(`[DreamFive Docker] ${message}\n`);
   process.exit(1);
 });

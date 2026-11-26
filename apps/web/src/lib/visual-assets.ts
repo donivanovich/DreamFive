@@ -184,7 +184,7 @@ export function getTeamBrand(teamCode: string | undefined): TeamBrand {
     'timberdog',
     'emperor',
   ];
-  const hash = hashString(normalized || 'DREAM5');
+  const hash = hashString(normalized || 'DreamFive');
   return {
     code: normalized.slice(0, 3) || 'D5',
     primary: palette[hash % palette.length] ?? '#ff8800',

@@ -5,7 +5,7 @@ import {
   type OnModuleDestroy,
   type OnModuleInit,
 } from '@nestjs/common';
-import { REDIS_CHANNELS, type RealtimeLeagueEventPayload } from '@dream5/shared';
+import { REDIS_CHANNELS, type RealtimeLeagueEventPayload } from '@dreamfive/shared';
 import { Redis } from 'ioredis';
 import type { Server } from 'socket.io';
 

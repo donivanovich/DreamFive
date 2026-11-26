@@ -18,7 +18,7 @@ const USER_ROUTES = [
   { path: '/settings', heading: /Panel Settings|Ajustes del panel/i },
 ];
 
-test.describe('DREAM5 UI smoke', () => {
+test.describe('DreamFive UI smoke', () => {
   test('defaults to English dark theme, hides Simulation from regular users, and renders all routes cleanly', async ({
     page,
   }) => {
@@ -37,9 +37,9 @@ test.describe('DREAM5 UI smoke', () => {
 
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-    await expect(page).toHaveTitle('DREAM5');
-    await expect(page.getByRole('button', { name: 'Sign in to DREAM5' })).toBeVisible();
-    const logoImg = page.getByRole('img', { name: 'DREAM5' }).first();
+    await expect(page).toHaveTitle('DreamFive');
+    await expect(page.getByRole('button', { name: 'Sign in to DreamFive' })).toBeVisible();
+    const logoImg = page.getByRole('img', { name: 'DreamFive' }).first();
     await expect(logoImg).toBeVisible();
     expect(
       await logoImg.evaluate((el) => (el instanceof HTMLImageElement ? el.naturalWidth : 0)),
@@ -47,12 +47,12 @@ test.describe('DREAM5 UI smoke', () => {
 
     const faviconRes = await page.request.get('/favicon.ico');
     expect(faviconRes.status()).toBe(200);
-    const pngLogoRes = await page.request.get('/dream5-logo.png');
+    const pngLogoRes = await page.request.get('/dreamfive-logo.png');
     expect(pngLogoRes.status()).toBe(200);
 
-    await page.locator('#auth-email').fill('maria.s@dream5.local');
-    await page.locator('#auth-password').fill('Dream5Demo!2026');
-    await page.getByRole('button', { name: 'Sign in to DREAM5' }).click();
+    await page.locator('#auth-email').fill('maria.s@dreamfive.local');
+    await page.locator('#auth-password').fill('DreamFiveDemo!2026');
+    await page.getByRole('button', { name: 'Sign in to DreamFive' }).click();
 
     await expect(page.getByRole('link', { name: /My Leagues|Mis ligas/i }).first()).toBeVisible({
       timeout: 20_000,
@@ -73,15 +73,15 @@ test.describe('DREAM5 UI smoke', () => {
     expect(consoleErrors).toEqual([]);
   });
 
-  test('exposes Spanish untranslated simulation console strictly to ivan.k@dream5.local', async ({
+  test('exposes Spanish untranslated simulation console strictly to ivan.k@dreamfive.local', async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/');
 
-    await page.locator('#auth-email').fill('ivan.k@dream5.local');
-    await page.locator('#auth-password').fill('Dream5Demo!2026');
-    await page.getByRole('button', { name: 'Sign in to DREAM5' }).click();
+    await page.locator('#auth-email').fill('ivan.k@dreamfive.local');
+    await page.locator('#auth-password').fill('DreamFiveDemo!2026');
+    await page.getByRole('button', { name: 'Sign in to DreamFive' }).click();
 
     const simNav = page.getByRole('link', { name: 'Simulation', exact: true }).first();
     await expect(simNav).toBeVisible({ timeout: 20_000 });
@@ -98,9 +98,9 @@ test.describe('DREAM5 UI smoke', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/');
 
-    await page.locator('#auth-email').fill('maria.s@dream5.local');
-    await page.locator('#auth-password').fill('Dream5Demo!2026');
-    await page.getByRole('button', { name: 'Sign in to DREAM5' }).click();
+    await page.locator('#auth-email').fill('maria.s@dreamfive.local');
+    await page.locator('#auth-password').fill('DreamFiveDemo!2026');
+    await page.getByRole('button', { name: 'Sign in to DreamFive' }).click();
 
     const openMenuBtn = page.getByRole('button', {
       name: /Open navigation menu|Abrir menú de navegación/i,

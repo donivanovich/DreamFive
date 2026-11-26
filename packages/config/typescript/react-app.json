@@ -1,6 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
-  "display": "DREAM5 — aplicación React (TanStack Start + Vite)",
+  "display": "DreamFive — aplicación React (TanStack Start + Vite)",
   "extends": "./base.json",
   "compilerOptions": {
     "lib": ["ES2024", "DOM", "DOM.Iterable"],

@@ -1,6 +1,6 @@
-# Documentación técnica de DREAM5
+# Documentación técnica de DreamFive
 
-Documentación oficial en español del prototipo Full Stack **DREAM5**.
+Documentación oficial en español del prototipo Full Stack **DreamFive**.
 
 ## Índice general
 

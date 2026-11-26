@@ -1,6 +1,6 @@
 import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
-import { ALL_QUEUE_NAMES } from '@dream5/shared';
+import { ALL_QUEUE_NAMES } from '@dreamfive/shared';
 
 import { API_ENV } from '../config/app-config.module.js';
 import type { ApiEnv } from '../config/env.schema.js';

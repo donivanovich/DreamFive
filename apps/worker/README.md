@@ -1,12 +1,12 @@
-# `@dream5/worker` — Procesador Asíncrono 24/7
+# `@dreamfive/worker` — Procesador Asíncrono 24/7
 
-Aplicación **NestJS standalone** (sin servidor HTTP) encargada de ejecutar las tareas en segundo plano de DREAM5 de forma continua e independiente de los usuarios conectados.
+Aplicación **NestJS standalone** (sin servidor HTTP) encargada de ejecutar las tareas en segundo plano de DreamFive de forma continua e independiente de los usuarios conectados.
 
 ## Responsabilidad
 
 - Mantener la conexión de consumidor con Redis/BullMQ para procesar trabajos asíncronos.
 - Alojar los futuros planificadores (_schedulers_) y procesadores (_processors_) de simulación, mercado, lesiones, progresión, clasificaciones y temporadas.
-- Invocar `@dream5/simulation-engine` sin acoplar el motor deportivo a NestJS ni a BullMQ.
+- Invocar `@dreamfive/simulation-engine` sin acoplar el motor deportivo a NestJS ni a BullMQ.
 - Emitir un latido periódico (`HeartbeatService`) verificado por `healthcheck.ts` para supervisión de contenedores.
 
 ## Organización interna

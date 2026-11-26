@@ -1,4 +1,4 @@
-import { localizeDisciplineReason, localizeDisqualificationReason } from '@dream5/shared';
+import { localizeDisciplineReason, localizeDisqualificationReason } from '@dreamfive/shared';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 
@@ -16,7 +16,7 @@ import { useToast } from '@/components/ui/toast-context';
 import { useI18n } from '@/hooks/use-i18n';
 import { formatMillions, formatStatNumber } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
-import { playersApi, teamsApi } from '@/services/dream5-api';
+import { playersApi, teamsApi } from '@/services/dreamfive-api';
 import { mapPlayerDtoToUi } from '@/services/mappers';
 
 export interface PlayerDetailModalProps {
@@ -288,7 +288,7 @@ export function PlayerDetailModal({ leagueId, playerId, onClose }: PlayerDetailM
               </p>
             ) : (
               <div className="space-y-3">
-                <div className="dream5-table-scroll max-h-64 overflow-y-auto rounded-md border border-border">
+                <div className="dreamfive-table-scroll max-h-64 overflow-y-auto rounded-md border border-border">
                   <table className="w-full min-w-[820px] border-collapse text-left text-xs">
                     <thead className="sticky top-0 z-10 bg-surface-deep text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
                       <tr className="border-b border-border">
@@ -450,7 +450,7 @@ export function PlayerDetailModal({ leagueId, playerId, onClose }: PlayerDetailM
                         matchup: `${selectedStat.isHome ? 'vs' : '@'} ${selectedStat.opponentTeamName}`,
                       })}
                     </p>
-                    <div className="dream5-table-scroll">
+                    <div className="dreamfive-table-scroll">
                       <table className="w-full min-w-[460px] border-collapse text-xs">
                         <thead>
                           <tr className="border-b border-border/80 text-[10px] text-muted-foreground uppercase">

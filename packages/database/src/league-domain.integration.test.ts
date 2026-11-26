@@ -33,7 +33,7 @@ const databaseUrl = process.env['DATABASE_URL'];
 const describeIfDb = databaseUrl ? describe : describe.skip;
 
 describeIfDb(
-  'Dominio multi-liga DREAM5 en PostgreSQL (aislamiento, alineación, traspasos y temporada)',
+  'Dominio multi-liga DreamFive en PostgreSQL (aislamiento, alineación, traspasos y temporada)',
   () => {
     let prisma: PrismaClient;
     const createdLeagueIds: string[] = [];
@@ -57,13 +57,13 @@ describeIfDb(
     async function createTestUser(
       suffix: string,
     ): Promise<{ readonly id: string; readonly tag: string }> {
-      const email = `it-domain-${suffix}-${String(Date.now())}@dream5.local`;
+      const email = `it-domain-${suffix}-${String(Date.now())}@dreamfive.local`;
       const tag = `#D5-${String(Math.floor(1000 + Math.random() * 8999))}`;
       const user = await prisma.user.create({
         data: {
           email,
           emailVerifiedAt: new Date(),
-          passwordHash: await hashPassword('Dream5Test!2026'),
+          passwordHash: await hashPassword('DreamFiveTest!2026'),
           role: 'USER',
           profile: {
             create: {

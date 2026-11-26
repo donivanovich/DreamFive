@@ -106,13 +106,13 @@ describe('port-range-utils', () => {
   it('rewrites loopback URLs and keeps production domains untouched', () => {
     assert.equal(rewriteLoopbackUrlPort('http://localhost:3101', 3105), 'http://localhost:3105');
     assert.equal(rewriteLoopbackUrlPort('http://127.0.0.1:3100/', 3104), 'http://127.0.0.1:3104');
-    assert.equal(rewriteLoopbackUrlPort('https://dream5.app/', 3104), 'https://dream5.app');
+    assert.equal(rewriteLoopbackUrlPort('https://dreamfive.app/', 3104), 'https://dreamfive.app');
   });
 
   it('syncs API_CORS_ORIGINS, VITE_API_URL, and WEB_PUBLIC_URL when fallback ports are used', () => {
     assert.equal(
-      appendLoopbackCorsOrigins('https://dream5.app', 3104),
-      'https://dream5.app,http://localhost:3104,http://127.0.0.1:3104',
+      appendLoopbackCorsOrigins('https://dreamfive.app', 3104),
+      'https://dreamfive.app,http://localhost:3104,http://127.0.0.1:3104',
     );
 
     const overrides = buildComposeEnvOverrides({

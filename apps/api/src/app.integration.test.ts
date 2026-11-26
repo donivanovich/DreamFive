@@ -6,7 +6,7 @@ import { resolve } from 'node:path';
 import fastifyMultipart from '@fastify/multipart';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 import { Test } from '@nestjs/testing';
-import { ensureCatalogSeeded, hashPassword } from '@dream5/database';
+import { ensureCatalogSeeded, hashPassword } from '@dreamfive/database';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { AppModule } from './app.module.js';
@@ -30,7 +30,7 @@ const TINY_PNG_BUFFER = Buffer.from(
 );
 
 function buildMultipartImagePayload(filename: string, mimeType: string, content: Buffer) {
-  const boundary = '----Dream5AvatarBoundary987654';
+  const boundary = '----DreamFiveAvatarBoundary987654';
   const head = Buffer.from(
     `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${filename}"\r\nContent-Type: ${mimeType}\r\n\r\n`,
     'utf8',
@@ -42,7 +42,7 @@ function buildMultipartImagePayload(filename: string, mimeType: string, content:
   };
 }
 
-describeIfInfra('Integración HTTP Full Stack de DREAM5 API (NestJS + Fastify)', () => {
+describeIfInfra('Integración HTTP Full Stack de DreamFive API (NestJS + Fastify)', () => {
   let app: NestFastifyApplication | undefined;
   let prisma: PrismaService | undefined;
   let mail: MailService | undefined;
@@ -83,7 +83,7 @@ describeIfInfra('Integración HTTP Full Stack de DREAM5 API (NestJS + Fastify)',
     if (!emailMsg?.code) {
       throw new Error(`No se encontró código de verificación enviado a ${params.email}`);
     }
-    expect(emailMsg.html).toContain('cid:dream5-logo');
+    expect(emailMsg.html).toContain('cid:dreamfive-logo');
 
     const wrongCodeRes = await app.inject({
       method: 'POST',
@@ -120,15 +120,15 @@ describeIfInfra('Integración HTTP Full Stack de DREAM5 API (NestJS + Fastify)',
       throw new Error('Infraestructura no inicializada.');
     }
     const existingIvan = await prisma.client.user.findUnique({
-      where: { email: 'ivan.k@dream5.local' },
+      where: { email: 'ivan.k@dreamfive.local' },
       include: { profile: true },
     });
     if (!existingIvan) {
       await prisma.client.user.create({
         data: {
-          email: 'ivan.k@dream5.local',
+          email: 'ivan.k@dreamfive.local',
           emailVerifiedAt: new Date(),
-          passwordHash: await hashPassword('Dream5Demo!2026'),
+          passwordHash: await hashPassword('DreamFiveDemo!2026'),
           role: 'ADMIN',
           profile: {
             create: {
@@ -161,7 +161,7 @@ describeIfInfra('Integración HTTP Full Stack de DREAM5 API (NestJS + Fastify)',
     const loginRes = await app.inject({
       method: 'POST',
       url: '/auth/login',
-      payload: { email: 'ivan.k@dream5.local', password: 'Dream5Demo!2026' },
+      payload: { email: 'ivan.k@dreamfive.local', password: 'DreamFiveDemo!2026' },
     });
     expect(loginRes.statusCode).toBe(200);
     const body = loginRes.json<{
@@ -205,7 +205,7 @@ describeIfInfra('Integración HTTP Full Stack de DREAM5 API (NestJS + Fastify)',
     }
   }, 30_000);
 
-  it('verificación de correo en registro, control estricto de simulación solo para ivan.k@dream5.local y ciclo de liga', async () => {
+  it('verificación de correo en registro, control estricto de simulación solo para ivan.k@dreamfive.local y ciclo de liga', async () => {
     if (!app) {
       throw new Error('La aplicación NestFastify no se inicializó correctamente.');
     }
@@ -213,15 +213,15 @@ describeIfInfra('Integración HTTP Full Stack de DREAM5 API (NestJS + Fastify)',
     const ts = String(Date.now());
 
     const presBody = await registerAndVerifyUser({
-      email: `api-pres-${ts}@dream5.local`,
-      password: 'Dream5Api!2026',
+      email: `api-pres-${ts}@dreamfive.local`,
+      password: 'DreamFiveApi!2026',
       username: `pres_api_${ts.slice(-5)}`,
     });
     expect(presBody.user.tag).toMatch(/^#D5-\d{4}$/);
 
     const memBody = await registerAndVerifyUser({
-      email: `api-mem-${ts}@dream5.local`,
-      password: 'Dream5Api!2026',
+      email: `api-mem-${ts}@dreamfive.local`,
+      password: 'DreamFiveApi!2026',
       username: `mem_api_${ts.slice(-5)}`,
     });
 
@@ -262,7 +262,7 @@ describeIfInfra('Integración HTTP Full Stack de DREAM5 API (NestJS + Fastify)',
     });
     expect(forbiddenSeasonRes.statusCode).toBe(403);
 
-    // Unir al admin ivan.k@dream5.local y al miembro normal
+    // Unir al admin ivan.k@dreamfive.local y al miembro normal
     const ivan = await ensureIvanAdminToken();
     const inviteIvan = await server.inject({
       method: 'POST',
@@ -280,7 +280,7 @@ describeIfInfra('Integración HTTP Full Stack de DREAM5 API (NestJS + Fastify)',
     });
     expect(acceptIvan.statusCode).toBe(201);
 
-    // Solo ivan.k@dream5.local puede simular
+    // Solo ivan.k@dreamfive.local puede simular
     const simRes = await server.inject({
       method: 'POST',
       url: `/dev/leagues/${createdLeague.leagueId}/simulate-round`,
@@ -360,8 +360,8 @@ describeIfInfra('Integración HTTP Full Stack de DREAM5 API (NestJS + Fastify)',
     }
     const server = app;
     const ts = String(Date.now());
-    const initialEmail = `api-prof-${ts}@dream5.local`;
-    const newEmail = `api-prof-new-${ts}@dream5.local`;
+    const initialEmail = `api-prof-${ts}@dreamfive.local`;
+    const newEmail = `api-prof-new-${ts}@dreamfive.local`;
 
     const bodyA = await registerAndVerifyUser({
       email: initialEmail,
@@ -370,7 +370,7 @@ describeIfInfra('Integración HTTP Full Stack de DREAM5 API (NestJS + Fastify)',
     });
 
     const bodyB = await registerAndVerifyUser({
-      email: `api-profB-${ts}@dream5.local`,
+      email: `api-profB-${ts}@dreamfive.local`,
       password: 'Password123!',
       username: `userB_${ts.slice(-5)}`,
     });
@@ -520,7 +520,7 @@ describeIfInfra('Integración HTTP Full Stack de DREAM5 API (NestJS + Fastify)',
     });
     expect(loginNew.statusCode).toBe(200);
 
-    // 5) Liga + admin ivan.k@dream5.local + bloqueo por rechazo (1 partido propuesto y deseado) y 5 partidos al aceptar
+    // 5) Liga + admin ivan.k@dreamfive.local + bloqueo por rechazo (1 partido propuesto y deseado) y 5 partidos al aceptar
     const createRes = await server.inject({
       method: 'POST',
       url: '/leagues',
@@ -1102,7 +1102,7 @@ describeIfInfra('Integración HTTP Full Stack de DREAM5 API (NestJS + Fastify)',
     // 9) Liga vacía eliminada por completo al borrar cuenta el único miembro humano
     const soloUsername = `solo_${ts.slice(-5)}`;
     const soloUser = await registerAndVerifyUser({
-      email: `api-solo-${ts}@dream5.local`,
+      email: `api-solo-${ts}@dreamfive.local`,
       password: 'Password123!',
       username: soloUsername,
     });

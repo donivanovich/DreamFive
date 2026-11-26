@@ -4,13 +4,13 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { pickDefaultLineupForTeam } from '@dream5/database';
+import { pickDefaultLineupForTeam } from '@dreamfive/database';
 import {
   type LineupDto,
   type Position,
   PROVISIONAL_GAME_CONFIG,
   type UpdateLineupInput,
-} from '@dream5/shared';
+} from '@dreamfive/shared';
 
 import { PrismaService } from '../../database/prisma.service.js';
 

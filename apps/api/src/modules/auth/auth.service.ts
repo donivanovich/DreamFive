@@ -8,7 +8,7 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import { hashPassword, verifyPassword } from '@dream5/database';
+import { hashPassword, verifyPassword } from '@dreamfive/database';
 import {
   ADMIN_SIMULATION_EMAIL,
   type AccentColor,
@@ -25,7 +25,7 @@ import {
   type ThemeMode,
   type UserPreferencesDto,
   type VerifyEmailInput,
-} from '@dream5/shared';
+} from '@dreamfive/shared';
 
 import { API_ENV } from '../../config/app-config.module.js';
 import type { ApiEnv } from '../../config/env.schema.js';

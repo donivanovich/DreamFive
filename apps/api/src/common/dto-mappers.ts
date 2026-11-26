@@ -1,4 +1,4 @@
-import type { PlayerInstanceDto } from '@dream5/shared';
+import type { PlayerInstanceDto } from '@dreamfive/shared';
 
 export interface PlayerInstanceWithTeamRow {
   readonly id: string;

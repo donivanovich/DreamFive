@@ -5,8 +5,8 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { joinLeagueWithRandomTeamInTx } from '@dream5/database';
-import type { LeagueInvitationDto } from '@dream5/shared';
+import { joinLeagueWithRandomTeamInTx } from '@dreamfive/database';
+import type { LeagueInvitationDto } from '@dreamfive/shared';
 
 import { PrismaService } from '../../database/prisma.service.js';
 

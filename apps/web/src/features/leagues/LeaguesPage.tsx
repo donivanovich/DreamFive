@@ -13,11 +13,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { ModalDialog } from '@/components/ui/Dialog';
 import { Input } from '@/components/ui/Input';
 import { useToast } from '@/components/ui/toast-context';
-import { useDream5State } from '@/hooks/use-dream5-state';
+import { useDreamFiveState } from '@/hooks/use-dreamfive-state';
 import { useI18n } from '@/hooks/use-i18n';
 import { formatStatNumber } from '@/lib/formatters';
 import { translateInvitationStatus, translateLeagueRole, translateMarketMode } from '@/lib/i18n';
-import { invitationsApi, leaguesApi, seasonsApi, usersApi } from '@/services/dream5-api';
+import { invitationsApi, leaguesApi, seasonsApi, usersApi } from '@/services/dreamfive-api';
 
 export function LeaguesPage() {
   const queryClient = useQueryClient();
@@ -29,7 +29,7 @@ export function LeaguesPage() {
     setActiveLeagueId,
     refreshSession,
     isSimulationAdmin,
-  } = useDream5State();
+  } = useDreamFiveState();
   const { language, t, f } = useI18n();
 
   const [createOpen, setCreateOpen] = useState(false);

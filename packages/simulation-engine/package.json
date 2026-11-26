@@ -1,8 +1,8 @@
 {
-  "name": "@dream5/simulation-engine",
+  "name": "@dreamfive/simulation-engine",
   "version": "0.1.0",
   "private": true,
-  "description": "Motor de simulación deportiva de DREAM5: TypeScript puro, sin dependencias de framework",
+  "description": "Motor de simulación deportiva de DreamFive: TypeScript puro, sin dependencias de framework",
   "type": "module",
   "sideEffects": false,
   "exports": {
@@ -23,7 +23,7 @@
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\""
   },
   "devDependencies": {
-    "@dream5/config": "workspace:*",
+    "@dreamfive/config": "workspace:*",
     "@types/node": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"

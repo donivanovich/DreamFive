@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, Put, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { type LineupDto, type UpdateLineupInput, updateLineupSchema } from '@dream5/shared';
+import { type LineupDto, type UpdateLineupInput, updateLineupSchema } from '@dreamfive/shared';
 
 import {
   CurrentMembership,

@@ -1,5 +1,5 @@
 /**
- * Tipos de dominio para la interfaz visual de DREAM5.
+ * Tipos de dominio para la interfaz visual de DreamFive.
  *
  * Representan el modelo conceptual del juego sobre datos de ejemplo (mocks).
  * No sustituyen al futuro contrato definitivo de la API ni al esquema Prisma.

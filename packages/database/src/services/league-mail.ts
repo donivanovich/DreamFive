@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { formatCleanDecimal, type LeagueMailCategory } from '@dream5/shared';
+import { formatCleanDecimal, type LeagueMailCategory } from '@dreamfive/shared';
 import type { Prisma, PrismaClient } from '../generated/prisma/client.js';
 
 export type LeagueMailDbClient = Prisma.TransactionClient | PrismaClient;
@@ -187,7 +187,7 @@ export function buildPresidentPromotionMailInput(params: {
     roundNumber: null,
     category: 'PRESIDENT_PROMOTION',
     subject: `¡Enhorabuena, ahora eres presidente de la liga ${params.leagueName}!`,
-    body: `${params.previousPresidentName} ha abandonado DREAM5 y te ha designado como nuevo presidente de ${params.leagueName}. Como nuevo máximo responsable de ${params.teamName}, ya puedes invitar a nuevos mánagers y liderar la liga.`,
+    body: `${params.previousPresidentName} ha abandonado DreamFive y te ha designado como nuevo presidente de ${params.leagueName}. Como nuevo máximo responsable de ${params.teamName}, ya puedes invitar a nuevos mánagers y liderar la liga.`,
     metadata: {
       leagueName: params.leagueName,
       previousPresidentName: params.previousPresidentName,

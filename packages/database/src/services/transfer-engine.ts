@@ -6,8 +6,8 @@ import {
   type Position,
   PROVISIONAL_GAME_CONFIG,
   type TransferStatus,
-} from '@dream5/shared';
-import { createSeededRng } from '@dream5/simulation-engine';
+} from '@dreamfive/shared';
+import { createSeededRng } from '@dreamfive/simulation-engine';
 
 import type { Prisma, PrismaClient } from '../generated/prisma/client.js';
 import { pickDefaultLineupForTeam } from './league-bootstrap.js';
@@ -55,7 +55,7 @@ export interface TransferValuationSummary {
 const ALL_POSITIONS: readonly Position[] = ['PG', 'SG', 'SF', 'PF', 'C'];
 
 /**
- * Valida las reglas puras de traspaso en DREAM5:
+ * Valida las reglas puras de traspaso en DreamFive:
  * - No duplicados ni jugadores ajenos al equipo correspondiente.
  * - Ambas plantillas resultantes mantienen exactamente 18 jugadores.
  * - Ambas plantillas resultantes cubren al menos 1 jugador en PG, SG, SF, PF y C.

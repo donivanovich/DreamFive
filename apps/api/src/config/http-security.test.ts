@@ -20,14 +20,14 @@ describe('resolveAllowedCorsOrigins & applyHttpSecurity', () => {
       resolveAllowedCorsOrigins([
         'http://localhost:3100',
         'http://127.0.0.1:3000',
-        'https://app.dream5.example',
+        'https://app.dreamfive.example',
       ]),
     ).toEqual([
       'http://localhost:3100',
       'http://127.0.0.1:3100',
       'http://127.0.0.1:3000',
       'http://localhost:3000',
-      'https://app.dream5.example',
+      'https://app.dreamfive.example',
     ]);
   });
 

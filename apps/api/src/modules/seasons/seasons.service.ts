@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { advanceSeasonForLeague } from '@dream5/database';
-import { type SeasonSummaryDto, SOCKET_EVENTS } from '@dream5/shared';
+import { advanceSeasonForLeague } from '@dreamfive/database';
+import { type SeasonSummaryDto, SOCKET_EVENTS } from '@dreamfive/shared';
 
 import { PrismaService } from '../../database/prisma.service.js';
 import { RealtimeService } from '../../realtime/realtime.service.js';

@@ -41,7 +41,7 @@ import type {
   UpdatePreferencesInput,
   UpdateProfileInput,
   VerifyEmailInput,
-} from '@dream5/shared';
+} from '@dreamfive/shared';
 
 import { apiFetch, setStoredAccessToken } from './api-client';
 

@@ -1,10 +1,10 @@
-import type { AuthUserDto, LeagueSummaryDto } from '@dream5/shared';
+import type { AuthUserDto, LeagueSummaryDto } from '@dreamfive/shared';
 import { createContext, useContext } from 'react';
 
 import type { AppearanceSettings } from '@/lib/appearance';
 import type { UserPreferences } from '@/types/fantasy';
 
-export interface Dream5StateContextValue {
+export interface DreamFiveStateContextValue {
   readonly user: AuthUserDto | null;
   readonly isAuthLoading: boolean;
   readonly isSimulationAdmin: boolean;
@@ -27,12 +27,12 @@ export interface Dream5StateContextValue {
   readonly logout: () => Promise<void>;
 }
 
-export const Dream5StateContext = createContext<Dream5StateContextValue | null>(null);
+export const DreamFiveStateContext = createContext<DreamFiveStateContextValue | null>(null);
 
-export function useDream5State(): Dream5StateContextValue {
-  const ctx = useContext(Dream5StateContext);
+export function useDreamFiveState(): DreamFiveStateContextValue {
+  const ctx = useContext(DreamFiveStateContext);
   if (!ctx) {
-    throw new Error('useDream5State debe utilizarse dentro de Dream5StateProvider');
+    throw new Error('useDreamFiveState debe utilizarse dentro de DreamFiveStateProvider');
   }
   return ctx;
 }

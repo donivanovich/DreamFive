@@ -5,7 +5,7 @@ import {
   SUPPORTED_LANGUAGES,
   THEME_MODES,
   type ThemeMode,
-} from '@dream5/shared';
+} from '@dreamfive/shared';
 
 export interface AppearanceSettings {
   readonly themeMode: ThemeMode;
@@ -19,7 +19,7 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
   language: 'en',
 };
 
-const STORAGE_KEY = 'dream5.appearance';
+const STORAGE_KEY = 'dreamfive.appearance';
 
 export interface AccentSwatch {
   readonly id: AccentColor;

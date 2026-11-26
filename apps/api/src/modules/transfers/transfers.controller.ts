@@ -6,7 +6,7 @@ import {
   createTransferOfferSchema,
   type RespondTransferOfferInput,
   respondTransferOfferSchema,
-} from '@dream5/shared';
+} from '@dreamfive/shared';
 import { z } from 'zod';
 
 import {

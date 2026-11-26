@@ -1,9 +1,9 @@
-import type { AccentColor, ThemeMode } from '@dream5/shared';
+import type { AccentColor, ThemeMode } from '@dreamfive/shared';
 import { Check, Moon, Palette, Sun } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 
 import type { MenuPosition } from '@/hooks/use-appearance-background';
-import { useDream5State } from '@/hooks/use-dream5-state';
+import { useDreamFiveState } from '@/hooks/use-dreamfive-state';
 import { useI18n } from '@/hooks/use-i18n';
 import { ACCENT_SWATCHES } from '@/lib/appearance';
 import { cn } from '@/lib/utils';
@@ -15,7 +15,7 @@ export function AppearanceContextMenu({
   readonly position: MenuPosition | null;
   readonly onClose: () => void;
 }) {
-  const { appearance, updateAppearance } = useDream5State();
+  const { appearance, updateAppearance } = useDreamFiveState();
   const { t } = useI18n();
   const menuRef = useRef<HTMLDivElement | null>(null);
 

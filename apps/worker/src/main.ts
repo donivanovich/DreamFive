@@ -8,7 +8,7 @@ import { loadLocalEnvFile } from './config/load-env.js';
 import { WorkerModule } from './worker.module.js';
 
 /**
- * Punto de entrada del worker de DREAM5.
+ * Punto de entrada del worker de DreamFive.
  *
  * Proceso independiente de la API: puede iniciarse, detenerse y escalarse
  * por separado. Gestiona SIGTERM/SIGINT para cerrar las conexiones de BullMQ
@@ -26,7 +26,7 @@ async function bootstrap(): Promise<void> {
   app.enableShutdownHooks();
   await app.init();
 
-  logger.log('Worker 24/7 de DREAM5 iniciado con processors BullMQ activos', 'Bootstrap');
+  logger.log('Worker 24/7 de DreamFive iniciado con processors BullMQ activos', 'Bootstrap');
 }
 
 bootstrap().catch((error: unknown) => {

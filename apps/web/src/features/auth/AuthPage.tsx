@@ -17,17 +17,17 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { PasswordInput } from '@/components/ui/PasswordInput';
 import { useToast } from '@/components/ui/toast-context';
-import { useDream5State } from '@/hooks/use-dream5-state';
+import { useDreamFiveState } from '@/hooks/use-dreamfive-state';
 import { useI18n } from '@/hooks/use-i18n';
 import { cn } from '@/lib/utils';
 import { ApiError } from '@/services/api-client';
-import { authApi } from '@/services/dream5-api';
+import { authApi } from '@/services/dreamfive-api';
 
 type AuthStep = 'login' | 'register' | 'verify';
 
 export function AuthPage() {
   const navigate = useNavigate();
-  const { refreshSession, appearance, updateAppearance } = useDream5State();
+  const { refreshSession, appearance, updateAppearance } = useDreamFiveState();
   const { t } = useI18n();
   const { showToast } = useToast();
 
@@ -118,7 +118,7 @@ export function AuthPage() {
       <div className="min-w-0 space-y-3.5 sm:space-y-6">
         <div className="inline-flex items-center gap-2 rounded-full border border-primary/35 bg-primary/10 px-3 py-1 text-xs font-semibold tracking-wider text-primary uppercase">
           <Sparkles className="h-3.5 w-3.5" />
-          DREAM5 · Basket Management Simulator
+          DreamFive · Basket Management Simulator
         </div>
 
         <h1 className="font-display text-2xl font-bold tracking-wide text-foreground uppercase sm:text-4xl md:text-5xl">
@@ -160,7 +160,7 @@ export function AuthPage() {
         <CardHeader className="flex-col items-stretch gap-3 pb-4">
           <div className="flex items-center justify-between gap-2">
             <CardTitle className="text-xl">
-              {mode === 'verify' ? t.auth.verifyTitle : 'DREAM5'}
+              {mode === 'verify' ? t.auth.verifyTitle : 'DreamFive'}
             </CardTitle>
 
             <div className="flex items-center gap-1.5">
@@ -316,7 +316,7 @@ export function AuthPage() {
                     id="auth-email"
                     type="email"
                     autoComplete="email"
-                    placeholder="ivan.k@dream5.local"
+                    placeholder="maria.s@dreamfive.local"
                     value={email}
                     onChange={(event) => {
                       setEmail(event.target.value);
@@ -393,28 +393,13 @@ export function AuthPage() {
               <p className="mb-2 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
                 {t.auth.demoTitle}
               </p>
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid gap-2">
                 <button
                   type="button"
                   onClick={() => {
                     setMode('login');
-                    setEmail('ivan.k@dream5.local');
-                    setPassword('Dream5Demo!2026');
-                  }}
-                  className="flex cursor-pointer items-center justify-between rounded-md border border-border bg-surface-deep px-2.5 py-2 text-left text-xs transition-colors hover:border-primary/45"
-                >
-                  <div>
-                    <p className="font-semibold text-foreground">Iván K.</p>
-                    <p className="text-[10px] text-muted-foreground">{t.auth.adminRoleNote}</p>
-                  </div>
-                  <Badge variant="primary">#D5-1001</Badge>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMode('login');
-                    setEmail('maria.s@dream5.local');
-                    setPassword('Dream5Demo!2026');
+                    setEmail('maria.s@dreamfive.local');
+                    setPassword('DreamFiveDemo!2026');
                   }}
                   className="flex cursor-pointer items-center justify-between rounded-md border border-border bg-surface-deep px-2.5 py-2 text-left text-xs transition-colors hover:border-primary/45"
                 >
@@ -422,7 +407,7 @@ export function AuthPage() {
                     <p className="font-semibold text-foreground">María S.</p>
                     <p className="text-[10px] text-muted-foreground">{t.auth.userRoleNote}</p>
                   </div>
-                  <Badge variant="outline">#D5-1002</Badge>
+                  <Badge variant="outline">#D5-7310</Badge>
                 </button>
               </div>
             </div>

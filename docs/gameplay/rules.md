@@ -1,6 +1,6 @@
 # Reglas oficiales de juego y configuración provisional
 
-DREAM5 respeta íntegramente la referencia funcional **v0.3** y distingue claramente entre **reglas fijas de dominio** (`LEAGUE_RULES`) y **parámetros provisionales** (`PROVISIONAL_GAME_CONFIG`) definidos en [`packages/shared/src/constants/index.ts`](../../packages/shared/src/constants/index.ts).
+DreamFive respeta íntegramente la referencia funcional **v0.3** y distingue claramente entre **reglas fijas de dominio** (`LEAGUE_RULES`) y **parámetros provisionales** (`PROVISIONAL_GAME_CONFIG`) definidos en [`packages/shared/src/constants/index.ts`](../../packages/shared/src/constants/index.ts).
 
 ## Reglas fijas vigentes (`LEAGUE_RULES`)
 

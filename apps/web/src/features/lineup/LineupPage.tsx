@@ -16,11 +16,11 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader } from '@/components/ui/Card';
 import { useToast } from '@/components/ui/toast-context';
-import { useDream5State } from '@/hooks/use-dream5-state';
+import { useDreamFiveState } from '@/hooks/use-dreamfive-state';
 import { useI18n } from '@/hooks/use-i18n';
 import { formatMillions, formatStatNumber } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
-import { lineupApi, teamsApi } from '@/services/dream5-api';
+import { lineupApi, teamsApi } from '@/services/dreamfive-api';
 import { mapPlayerDtoToUi } from '@/services/mappers';
 import type { Position } from '@/types/fantasy';
 
@@ -30,7 +30,7 @@ export function LineupPage() {
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const { getTriggerProps } = usePlayerContextMenu();
-  const { activeLeague } = useDream5State();
+  const { activeLeague } = useDreamFiveState();
   const { t, f } = useI18n();
   const leagueId = activeLeague?.id ?? null;
 

@@ -7,13 +7,13 @@ import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { PasswordInput } from '@/components/ui/PasswordInput';
 import { useToast } from '@/components/ui/toast-context';
-import { useDream5State } from '@/hooks/use-dream5-state';
+import { useDreamFiveState } from '@/hooks/use-dreamfive-state';
 import { useI18n } from '@/hooks/use-i18n';
-import { authApi } from '@/services/dream5-api';
+import { authApi } from '@/services/dreamfive-api';
 
 export function ChangePasswordPage() {
   const location = useLocation();
-  const { user } = useDream5State();
+  const { user } = useDreamFiveState();
   const { showToast } = useToast();
   const { t } = useI18n();
 

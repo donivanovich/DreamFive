@@ -9,8 +9,8 @@ export const SWAGGER_PATH = 'docs';
  */
 export function setupSwagger(app: NestFastifyApplication): void {
   const config = new DocumentBuilder()
-    .setTitle('DREAM5 API')
-    .setDescription('API REST y tiempo real de DREAM5 Fantasy Manager (entorno de desarrollo)')
+    .setTitle('DreamFive API')
+    .setDescription('API REST y tiempo real de DreamFive Fantasy Manager (entorno de desarrollo)')
     .setVersion('0.2.0')
     .addBearerAuth()
     .build();

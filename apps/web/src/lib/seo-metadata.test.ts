@@ -11,7 +11,9 @@ import {
 
 describe('seo-metadata', () => {
   it('normalizes valid HTTP(S) origins and rejects invalid or non-HTTP URLs', () => {
-    expect(normalizePublicOrigin('https://dream5.app/leagues?foo=1')).toBe('https://dream5.app');
+    expect(normalizePublicOrigin('https://dreamfive.app/leagues?foo=1')).toBe(
+      'https://dreamfive.app',
+    );
     expect(normalizePublicOrigin('http://localhost:3100/')).toBe('http://localhost:3100');
     expect(normalizePublicOrigin('javascript:alert(1)')).toBeNull();
     expect(normalizePublicOrigin('not-a-url')).toBeNull();
@@ -28,11 +30,11 @@ describe('seo-metadata', () => {
   it('builds complete Open Graph, Twitter Card, and canonical tags for the root route', () => {
     const result = buildShareHeadMetadata({
       pathname: '/',
-      publicOrigin: 'https://dream5.app',
+      publicOrigin: 'https://dreamfive.app',
     });
 
-    expect(result.links).toEqual([{ rel: 'canonical', href: 'https://dream5.app/' }]);
-    expect(result.meta).toContainEqual({ property: 'og:url', content: 'https://dream5.app/' });
+    expect(result.links).toEqual([{ rel: 'canonical', href: 'https://dreamfive.app/' }]);
+    expect(result.meta).toContainEqual({ property: 'og:url', content: 'https://dreamfive.app/' });
     expect(result.meta).toContainEqual({ property: 'og:title', content: DEFAULT_SHARE_TITLE });
     expect(result.meta).toContainEqual({
       property: 'og:description',
@@ -40,12 +42,12 @@ describe('seo-metadata', () => {
     });
     expect(result.meta).toContainEqual({
       property: 'og:image',
-      content: `https://dream5.app${OG_IMAGE_PATH}`,
+      content: `https://dreamfive.app${OG_IMAGE_PATH}`,
     });
     expect(result.meta).toContainEqual({ name: 'twitter:card', content: 'summary_large_image' });
     expect(result.meta).toContainEqual({
       name: 'twitter:image',
-      content: `https://dream5.app${OG_IMAGE_PATH}`,
+      content: `https://dreamfive.app${OG_IMAGE_PATH}`,
     });
   });
 
@@ -59,7 +61,7 @@ describe('seo-metadata', () => {
     expect(result.meta.some((entry) => entry.property === 'og:url')).toBe(false);
     expect(result.meta).toContainEqual({
       property: 'og:title',
-      content: 'Dynamic Player Market · DREAM5',
+      content: 'Dynamic Player Market · DreamFive',
     });
     expect(result.meta).toContainEqual({ property: 'og:image', content: OG_IMAGE_PATH });
   });

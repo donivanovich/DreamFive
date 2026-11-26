@@ -42,7 +42,7 @@ export const SOCKET_EVENTS = {
 } as const;
 
 export const REDIS_CHANNELS = {
-  leagueRealtimeEvents: 'dream5:realtime:league-events',
+  leagueRealtimeEvents: 'dreamfive:realtime:league-events',
 } as const;
 
 export interface ScoringWeightsConfig {
@@ -67,7 +67,7 @@ export interface ScoringWeightsConfig {
   readonly minMaxMinutes: number;
 }
 
-export const DREAM5_NBA_SCORING_RULES = {
+export const DREAMFIVE_NBA_SCORING_RULES = {
   minPerPoint: 10,
   minMaxPoints: 4,
   minMaxMinutes: 48,
@@ -154,12 +154,12 @@ export const PROVISIONAL_GAME_CONFIG = {
     ft1: -3,
     ft2: -5,
     min: 1,
-    ptsDivisor: DREAM5_NBA_SCORING_RULES.ptsPerPoint,
-    rebDivisor: DREAM5_NBA_SCORING_RULES.rebPerPoint,
-    astDivisor: DREAM5_NBA_SCORING_RULES.astPerPoint,
-    minDivisor: DREAM5_NBA_SCORING_RULES.minPerPoint,
-    minMaxPoints: DREAM5_NBA_SCORING_RULES.minMaxPoints,
-    minMaxMinutes: DREAM5_NBA_SCORING_RULES.minMaxMinutes,
+    ptsDivisor: DREAMFIVE_NBA_SCORING_RULES.ptsPerPoint,
+    rebDivisor: DREAMFIVE_NBA_SCORING_RULES.rebPerPoint,
+    astDivisor: DREAMFIVE_NBA_SCORING_RULES.astPerPoint,
+    minDivisor: DREAMFIVE_NBA_SCORING_RULES.minPerPoint,
+    minMaxPoints: DREAMFIVE_NBA_SCORING_RULES.minMaxPoints,
+    minMaxMinutes: DREAMFIVE_NBA_SCORING_RULES.minMaxMinutes,
   } satisfies ScoringWeightsConfig,
 
   lineupRules: {
@@ -233,7 +233,7 @@ export const PROVISIONAL_GAME_CONFIG = {
   } satisfies SeasonResetConfig,
 } as const;
 
-export const ADMIN_SIMULATION_EMAIL = 'ivan.k@dream5.local';
+export const ADMIN_SIMULATION_EMAIL = 'ivan.k@dreamfive.local';
 
 export const THEME_MODES = ['dark', 'light'] as const;
 

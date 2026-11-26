@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import type { StandingEntryDto } from '@dream5/shared';
+import type { StandingEntryDto } from '@dreamfive/shared';
 
 import { PrismaService } from '../../database/prisma.service.js';
 

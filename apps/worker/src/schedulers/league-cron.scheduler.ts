@@ -1,6 +1,6 @@
 import { InjectQueue } from '@nestjs/bullmq';
 import { Inject, Injectable, Logger, type OnModuleInit } from '@nestjs/common';
-import { JOB_NAMES, QUEUE_NAMES } from '@dream5/shared';
+import { JOB_NAMES, QUEUE_NAMES } from '@dreamfive/shared';
 import type { Queue } from 'bullmq';
 
 import type { WorkerEnv } from '../config/env.schema.js';
@@ -18,7 +18,7 @@ export class LeagueCronScheduler implements OnModuleInit {
 
   async onModuleInit(): Promise<void> {
     await this.simulationQueue.upsertJobScheduler(
-      'dream5-24x7-tick',
+      'dreamfive-24x7-tick',
       { every: this.env.WORKER_SCHEDULER_INTERVAL_MS },
       {
         name: JOB_NAMES.schedulerTick,
@@ -28,7 +28,7 @@ export class LeagueCronScheduler implements OnModuleInit {
     );
 
     await this.marketQueue.upsertJobScheduler(
-      'dream5-hourly-market',
+      'dreamfive-hourly-market',
       { every: 3600_000 },
       {
         name: JOB_NAMES.repriceLeagueMarket,

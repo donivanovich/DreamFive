@@ -1,4 +1,4 @@
-import { createConfig } from '@dream5/config/eslint';
+import { createConfig } from '@dreamfive/config/eslint';
 
 export default createConfig({
   tsconfigRootDir: import.meta.dirname,

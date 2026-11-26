@@ -1,6 +1,6 @@
 import { Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import type { SeasonSummaryDto } from '@dream5/shared';
+import type { SeasonSummaryDto } from '@dreamfive/shared';
 
 import { AdminSimulationGuard, LeagueMemberGuard } from '../../common/auth.guards.js';
 import { SeasonsService } from './seasons.service.js';

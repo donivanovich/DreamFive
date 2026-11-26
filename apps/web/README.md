@@ -1,12 +1,12 @@
-# `@dream5/web` — Frontend DREAM5
+# `@dreamfive/web` — Frontend DreamFive
 
-Aplicación web SSR/cliente de **DREAM5** construida con **TanStack Start**, **React 19**, **Tailwind CSS v4**, primitivas estilo **shadcn/ui** y **lucide-react**.
+Aplicación web SSR/cliente de **DreamFive** construida con **TanStack Start**, **React 19**, **Tailwind CSS v4**, primitivas estilo **shadcn/ui** y **lucide-react**.
 
 > **Estado actual:** **prototipo visual completo sobre datos ficticios de ejemplo (`src/data/mocks.ts`)**. Todas las vistas de producto son navegables e interactivas en cliente (cambio de liga activa, alineación titular, filtros, previsualización de traspasos y preferencias de interfaz), **sin conexión todavía con `apps/api`, PostgreSQL, Redis, Socket.IO ni motor de simulación**.
 
 ## Identidad visual y diseño
 
-- **Marca visible:** `DREAM5` / `FANTASY MANAGER` (el nombre de paquete `@dream5/web` se mantiene internamente por compatibilidad del monorepo).
+- **Marca visible:** `DreamFive` / `FANTASY MANAGER` (el nombre de paquete `@dreamfive/web` se mantiene internamente por compatibilidad del monorepo).
 - **Estética:** interfaz oscura deportiva (`#0b1016` fondo base, `#080c11` barra lateral/cabecera, `#0d141d` tarjetas, `#1d2836` bordes, `#ff8800` naranja primario, `#0be5ff` acento informativo).
 - **Tipografía:** `Barlow Condensed` para cabeceras y marcadores numéricos (`tabular-nums`), combinada con `IBM Plex Sans` para cuerpo y tablas.
 - **Navegación:** barra lateral fija en escritorio (`240px`) + drawer responsive en móvil/tablet + cabecera con selector de liga activa y perfil del mánager (`#D5-4821`).
@@ -40,7 +40,7 @@ src/
 │   ├── shared/     # PageHeader, EmptyState, LoadingSkeletonCard, ErrorFallbackCard
 │   └── <dominio>/  # Tablas, tarjetas de jugador, ligas, mercado, partidos, clasificación, traspasos
 ├── data/           # Datos de ejemplo ficticios organizados por liga (`mocks.ts`)
-├── hooks/          # Estado local del prototipo (`use-dream5-state.ts` + `Dream5StateProvider`)
+├── hooks/          # Estado local del prototipo (`use-dreamfive-state.ts` + `DreamFiveStateProvider`)
 ├── lib/            # Helpers (`cn`, formateadores y evaluación visual `evaluateTradeProposal`)
 ├── services/       # Reservado para futuros clientes HTTP y Socket.IO hacia `apps/api`
 ├── styles/         # Tema oscuro CSS-first de Tailwind v4 (`app.css`)

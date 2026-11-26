@@ -1,4 +1,4 @@
-import baseConfig from '@dream5/config/prettier';
+import baseConfig from '@dreamfive/config/prettier';
 
 /** @type {import('prettier').Config} */
 export default {

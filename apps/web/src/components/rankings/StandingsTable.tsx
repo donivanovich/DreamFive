@@ -38,7 +38,7 @@ export function StandingsTable({
   );
 
   return (
-    <div className="dream5-table-scroll rounded-lg border border-border bg-card">
+    <div className="dreamfive-table-scroll rounded-lg border border-border bg-card">
       <table
         className={cn(
           'w-full border-collapse text-left text-sm',

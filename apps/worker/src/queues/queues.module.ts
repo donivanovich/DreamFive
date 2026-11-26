@@ -1,6 +1,6 @@
 import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
-import { ALL_QUEUE_NAMES } from '@dream5/shared';
+import { ALL_QUEUE_NAMES } from '@dreamfive/shared';
 
 import type { WorkerEnv } from '../config/env.schema.js';
 import { buildRedisConnectionOptions, WORKER_ENV } from '../config/worker-config.module.js';

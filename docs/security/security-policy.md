@@ -1,6 +1,6 @@
 # Política de seguridad y auditoría
 
-Este documento recoge las medidas de seguridad aplicadas en la inicialización de DREAM5, el proceso de auditoría de dependencias y los riesgos pendientes de abordar al implementar las funcionalidades del juego.
+Este documento recoge las medidas de seguridad aplicadas en la inicialización de DreamFive, el proceso de auditoría de dependencias y los riesgos pendientes de abordar al implementar las funcionalidades del juego.
 
 ## Controles aplicados en esta inicialización
 

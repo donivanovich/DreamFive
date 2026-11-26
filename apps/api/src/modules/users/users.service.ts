@@ -11,7 +11,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { deleteUserAccountWithLeagueHandover, verifyPassword } from '@dream5/database';
+import { deleteUserAccountWithLeagueHandover, verifyPassword } from '@dreamfive/database';
 import {
   type AccountDeletionContextDto,
   type AuthUserDto,
@@ -23,7 +23,7 @@ import {
   type RequestEmailChangeInput,
   type UpdatePreferencesInput,
   type UpdateProfileInput,
-} from '@dream5/shared';
+} from '@dreamfive/shared';
 
 import { API_ENV } from '../../config/app-config.module.js';
 import type { ApiEnv } from '../../config/env.schema.js';

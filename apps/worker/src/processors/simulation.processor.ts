@@ -4,8 +4,8 @@ import {
   expirePendingTransferOffers,
   simulateRoundForLeague,
   simulateScheduledMatchAndProgress,
-} from '@dream5/database';
-import { JOB_NAMES, QUEUE_NAMES, SOCKET_EVENTS } from '@dream5/shared';
+} from '@dreamfive/database';
+import { JOB_NAMES, QUEUE_NAMES, SOCKET_EVENTS } from '@dreamfive/shared';
 import type { Job, Queue } from 'bullmq';
 import type { Redis } from 'ioredis';
 
@@ -56,7 +56,7 @@ export class SimulationProcessor extends WorkerHost {
       if (this.redis.status === 'wait') {
         await this.redis.connect();
       }
-      const raw = await this.redis.get(`dream5:worker:clock-wall:${leagueId}`);
+      const raw = await this.redis.get(`dreamfive:worker:clock-wall:${leagueId}`);
       if (!raw) {
         return undefined;
       }
@@ -74,7 +74,7 @@ export class SimulationProcessor extends WorkerHost {
         await this.redis.connect();
       }
       await this.redis.set(
-        `dream5:worker:clock-wall:${leagueId}`,
+        `dreamfive:worker:clock-wall:${leagueId}`,
         String(nowMs),
         'EX',
         7 * 24 * 3600,

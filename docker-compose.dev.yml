@@ -1,5 +1,5 @@
 # -----------------------------------------------------------------------------
-# DREAM5 — override para DESARROLLO LOCAL
+# DreamFive — override para DESARROLLO LOCAL
 # -----------------------------------------------------------------------------
 # Publica PostgreSQL y Redis SOLO en la interfaz de loopback (127.0.0.1) para
 # que la API, el worker y Prisma CLI ejecutados en el host puedan conectarse.

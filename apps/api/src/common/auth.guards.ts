@@ -9,7 +9,7 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import { ADMIN_SIMULATION_EMAIL, type AuthUserDto, type LeagueRole } from '@dream5/shared';
+import { ADMIN_SIMULATION_EMAIL, type AuthUserDto, type LeagueRole } from '@dreamfive/shared';
 import type { Redis } from 'ioredis';
 
 import { API_ENV } from '../config/app-config.module.js';

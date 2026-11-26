@@ -1,5 +1,5 @@
 // -----------------------------------------------------------------------------
-// DREAM5 — Esquema relacional en PostgreSQL + Prisma ORM 7
+// DreamFive — Esquema relacional en PostgreSQL + Prisma ORM 7
 // -----------------------------------------------------------------------------
 // Garantiza aislamiento estricto entre ligas mediante `leagueId` en toda entidad
 // deportiva/económica y claves foráneas compuestas `(entidadId, leagueId)`.

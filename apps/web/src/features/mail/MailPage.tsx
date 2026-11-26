@@ -6,7 +6,7 @@ import {
   localizeTransferResponseNote,
   type LeagueMailCategory,
   type LeagueMailDto,
-} from '@dream5/shared';
+} from '@dreamfive/shared';
 import {
   AlertTriangle,
   ArrowLeftRight,
@@ -28,12 +28,12 @@ import { PageHeader } from '@/components/shared/PageHeader';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/toast-context';
-import { useDream5State } from '@/hooks/use-dream5-state';
+import { useDreamFiveState } from '@/hooks/use-dreamfive-state';
 import { useI18n } from '@/hooks/use-i18n';
 import { formatMillions, formatStatNumber } from '@/lib/formatters';
 import { formatMsg, getLocaleCode } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
-import { mailApi } from '@/services/dream5-api';
+import { mailApi } from '@/services/dreamfive-api';
 
 type MailFilterGroup = 'ALL' | 'MATCHES' | 'TRANSFERS' | 'MEDICAL' | 'SEASON';
 
@@ -295,7 +295,7 @@ function localizeMailContent(
 }
 
 export function MailPage() {
-  const { activeLeague } = useDream5State();
+  const { activeLeague } = useDreamFiveState();
   const { showToast } = useToast();
   const { t, f, language } = useI18n();
   const locale = getLocaleCode(language);

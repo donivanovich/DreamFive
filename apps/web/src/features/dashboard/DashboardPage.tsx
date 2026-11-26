@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { ModalDialog } from '@/components/ui/Dialog';
 import { usePlayerContextMenu } from '@/components/players/player-context';
-import { useDream5State } from '@/hooks/use-dream5-state';
+import { useDreamFiveState } from '@/hooks/use-dreamfive-state';
 import { useI18n } from '@/hooks/use-i18n';
 import { formatExactCreditsFromMillions, formatMillions, formatStatNumber } from '@/lib/formatters';
 import { translateLeagueRole } from '@/lib/i18n';
@@ -28,11 +28,11 @@ import {
   rankingsApi,
   teamsApi,
   transfersApi,
-} from '@/services/dream5-api';
+} from '@/services/dreamfive-api';
 import { mapMatchDtoToUi, mapPlayerDtoToUi, mapStandingDtoToUi } from '@/services/mappers';
 
 export function DashboardPage() {
-  const { user, activeLeague, pendingInvitationsCount, isSimulationAdmin } = useDream5State();
+  const { user, activeLeague, pendingInvitationsCount, isSimulationAdmin } = useDreamFiveState();
   const { language, locale, t, f } = useI18n();
   const { getTriggerProps } = usePlayerContextMenu();
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
@@ -83,7 +83,9 @@ export function DashboardPage() {
         <PageHeader
           title={t.dashboard.titleNoLeague}
           description={
-            user ? f(t.dashboard.welcomeNoLeague, { name: user.username, tag: user.tag }) : 'DREAM5'
+            user
+              ? f(t.dashboard.welcomeNoLeague, { name: user.username, tag: user.tag })
+              : 'DreamFive'
           }
           actions={
             pendingInvitationsCount > 0 ? (

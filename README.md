@@ -1,6 +1,6 @@
-# DREAM5
+# DreamFive
 
-**DREAM5** es un juego _fantasy_ de gestión deportiva de baloncesto Full Stack preparado para operar **24/7**, con ligas privadas completamente aisladas entre sí, simulación automática de partidos, economía dinámica, lesiones, expulsiones, progresión de jugadores, traspasos con garantías ACID y competición mensual por temporadas.
+**DreamFive** es un juego _fantasy_ de gestión deportiva de baloncesto Full Stack preparado para operar **24/7**, con ligas privadas completamente aisladas entre sí, simulación automática de partidos, economía dinámica, lesiones, expulsiones, progresión de jugadores, traspasos con garantías ACID y competición mensual por temporadas.
 
 > **Estado actual:** **Prototipo funcional Full Stack completamente dockerizado** conectado a PostgreSQL 18, Redis 8, envío SMTP real configurable (Gmail / SMTP), NestJS (Fastify + Socket.IO), Worker 24/7 BullMQ, motor de simulación determinista en TypeScript puro y aplicación web React + TanStack Start + TanStack Query.
 
@@ -19,7 +19,7 @@
   - Bloqueo previo automático según reloj de liga y configuración provisional (`PROVISIONAL_GAME_CONFIG.lineupRules.lockMinutesBeforeTipoff`).
 - **Simulación 24/7 + consola exclusiva de administración (`/simulation`):**
   - _Worker_ autónomo en `apps/worker` con planificador horario de mercado y _tick_ continuo de jornadas vencidas + eventos en tiempo real vía Redis Pub/Sub → Socket.IO (`league:<leagueId>`).
-  - Consola `/simulation` (en español, restringida estrictamente al administrador `ivan.k@dream5.local`) para simular 1 partido, simular 1 jornada, adelantar el reloj `+12h`/`+24h`, recalcular mercado y renovar temporada mensual.
+  - Consola `/simulation` (en español, restringida estrictamente al administrador `ivan.k@dreamfive.local`) para simular 1 partido, simular 1 jornada, adelantar el reloj `+12h`/`+24h`, recalcular mercado y renovar temporada mensual.
 - **Traspasos ACID con validación estricta:** ambos equipos conservan exactamente **18 jugadores**, cobertura de las **5 posiciones**, valoración ofrecida ≥ **50 %** del paquete solicitado, **bloqueo de 1 partido** para ambos jugadores (ofrecido y pedido) tras oferta rechazada, **bloqueo de 5 partidos** tras fichaje completado e idempotencia ante doble aceptación concurrente.
 
 ---
@@ -33,7 +33,7 @@
 | **Workers 24/7**           | NestJS Standalone + BullMQ (`simulation`, `market`, `injuries`, `progression`, `rankings`, `seasons`)                 |
 | **Base de datos**          | PostgreSQL 18 + Prisma 7 (`@prisma/adapter-pg`)                                                                       |
 | **Caché / Colas / PubSub** | Redis 8 (AOF persistente)                                                                                             |
-| **Motor deportivo**        | Paquete puro TypeScript (`@dream5/simulation-engine`) sin acoplamiento a NestJS ni Prisma                             |
+| **Motor deportivo**        | Paquete puro TypeScript (`@dreamfive/simulation-engine`) sin acoplamiento a NestJS ni Prisma                          |
 | **Calidad y pruebas**      | TypeScript 6 estricto, ESLint (`--max-warnings=0`), Prettier, Vitest (unitarias e integración real), Playwright (E2E) |
 
 ---
@@ -67,13 +67,13 @@ Accesos locales (configurables en `.env`):
 
 > Si los puertos definidos (`WEB_PORT`, `API_PORT`, `POSTGRES_PORT` o `REDIS_PORT`) ya están ocupados en el host, Docker Compose y `pnpm docker:up` seleccionan automáticamente un puerto libre dentro de su rango (`*_PORT_RANGE`) y sincronizan `VITE_API_URL`, `WEB_PUBLIC_URL` y `API_CORS_ORIGINS`. Puedes previsualizar los puertos asignados con `pnpm docker:ports`.
 
-### 3. Credenciales de demostración (cargadas por `seed`)
+### 3. Cuenta de demostración (cargada por `seed`)
 
-| Usuario          | Correo                 | Contraseña         | Etiqueta   | Rol en seed                                     |
-| ---------------- | ---------------------- | ------------------ | ---------- | ----------------------------------------------- |
-| **Iván Kovac**   | `ivan.k@dream5.local`  | `Dream5Demo!2026`  | `#D5-4821` | Administrador de simulación y Pte. Mediterránea |
-| **María Soler**  | `maria.s@dream5.local` | `Dream5Demo!2026`  | `#D5-7310` | Miembro de _Liga Mediterránea_                  |
-| **Admin DREAM5** | `admin@dream5.local`   | `Dream5Admin!2026` | `#D5-0001` | Mánager sin liga activa                         |
+| Usuario         | Correo                    | Contraseña           | Etiqueta   | Rol en seed                    |
+| --------------- | ------------------------- | -------------------- | ---------- | ------------------------------ |
+| **María Soler** | `maria.s@dreamfive.local` | `DreamFiveDemo!2026` | `#D5-7310` | Miembro de _Liga Mediterránea_ |
+
+> El acceso rápido de demostración únicamente ofrece una cuenta estándar de mánager sin acceso a la consola de simulación administrativa.
 
 ---
 

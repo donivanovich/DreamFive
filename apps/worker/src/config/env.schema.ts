@@ -21,9 +21,9 @@ export const workerEnvSchema = z
     QUEUE_PREFIX: z
       .string()
       .regex(/^[a-z0-9-]+$/)
-      .default('dream5'),
+      .default('dreamfive'),
 
-    WORKER_HEARTBEAT_FILE: z.string().min(1).default(join(tmpdir(), 'dream5-worker.heartbeat')),
+    WORKER_HEARTBEAT_FILE: z.string().min(1).default(join(tmpdir(), 'dreamfive-worker.heartbeat')),
     WORKER_HEARTBEAT_INTERVAL_MS: z.coerce.number().int().min(1_000).max(60_000).default(10_000),
     WORKER_SCHEDULER_INTERVAL_MS: z.coerce.number().int().min(2_000).max(3_600_000).default(30_000),
   })

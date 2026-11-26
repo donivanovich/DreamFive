@@ -19,7 +19,7 @@ import { UploadsModule } from './uploads/uploads.module.js';
 import { UsersModule } from './users/users.module.js';
 
 /**
- * Módulos de dominio y simulación de la API de DREAM5.
+ * Módulos de dominio y simulación de la API de DreamFive.
  */
 export const FEATURE_MODULES: readonly Type[] = [
   MailModule,

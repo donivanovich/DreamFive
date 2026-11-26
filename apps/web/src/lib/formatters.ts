@@ -1,4 +1,4 @@
-import { formatCleanDecimal } from '@dream5/shared';
+import { formatCleanDecimal } from '@dreamfive/shared';
 
 import type { AvailabilityStatus, PlayerRole, Position } from '@/types/fantasy';
 

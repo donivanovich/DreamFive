@@ -1,5 +1,5 @@
 import { Global, Inject, Injectable, Logger, Module, type OnModuleDestroy } from '@nestjs/common';
-import { REDIS_CHANNELS, type RealtimeLeagueEventPayload } from '@dream5/shared';
+import { REDIS_CHANNELS, type RealtimeLeagueEventPayload } from '@dreamfive/shared';
 import { Redis } from 'ioredis';
 
 import type { WorkerEnv } from '../config/env.schema.js';

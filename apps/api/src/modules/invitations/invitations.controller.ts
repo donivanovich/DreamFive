@@ -5,7 +5,7 @@ import {
   type InviteByTagInput,
   inviteByTagSchema,
   type LeagueInvitationDto,
-} from '@dream5/shared';
+} from '@dreamfive/shared';
 
 import { CurrentUser, LeaguePresidentGuard, SessionAuthGuard } from '../../common/auth.guards.js';
 import { ZodValidationPipe } from '../../common/zod-validation.pipe.js';

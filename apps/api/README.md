@@ -1,6 +1,6 @@
-# `@dream5/api` — Backend HTTP y Tiempo Real
+# `@dreamfive/api` — Backend HTTP y Tiempo Real
 
-Servicio API de DREAM5 construido con **NestJS** sobre el adaptador **Fastify** y servidor **Socket.IO**.
+Servicio API de DreamFive construido con **NestJS** sobre el adaptador **Fastify** y servidor **Socket.IO**.
 
 ## Responsabilidad
 
@@ -15,7 +15,7 @@ Servicio API de DREAM5 construido con **NestJS** sobre el adaptador **Fastify** 
 ```text
 src/
 ├── config/       # Validación de entorno, Helmet/CORS, Pino logger y Swagger
-├── database/     # Módulo global con PrismaService (envuelve @dream5/database)
+├── database/     # Módulo global con PrismaService (envuelve @dreamfive/database)
 ├── redis/        # Cliente ioredis compartido y opciones comunes de conexión
 ├── queues/       # Registro de colas BullMQ en modo productor
 ├── realtime/     # Adaptador seguro y Gateway de Socket.IO

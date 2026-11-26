@@ -1,5 +1,5 @@
 /**
- * Configuración compartida de ESLint (flat config) para DREAM5.
+ * Configuración compartida de ESLint (flat config) para DreamFive.
  *
  * Se expone como una función para que el `eslint.config.js` raíz decida qué
  * patrones de archivos reciben cada bloque de reglas. Usa linting con

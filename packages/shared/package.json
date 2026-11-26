@@ -1,5 +1,5 @@
 {
-  "name": "@dream5/shared",
+  "name": "@dreamfive/shared",
   "version": "0.1.0",
   "private": true,
   "description": "Tipos, esquemas, constantes y enumeraciones compartidos entre web, API y worker",
@@ -25,7 +25,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@dream5/config": "workspace:*",
+    "@dreamfive/config": "workspace:*",
     "@types/node": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"

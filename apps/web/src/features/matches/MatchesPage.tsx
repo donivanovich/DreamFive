@@ -1,4 +1,4 @@
-import { localizeDisqualificationReason } from '@dream5/shared';
+import { localizeDisqualificationReason } from '@dreamfive/shared';
 import { useQuery } from '@tanstack/react-query';
 import { Activity, Filter } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -15,13 +15,13 @@ import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { ModalDialog } from '@/components/ui/Dialog';
 import { useToast } from '@/components/ui/toast-context';
-import { useDream5State } from '@/hooks/use-dream5-state';
+import { useDreamFiveState } from '@/hooks/use-dreamfive-state';
 import { useI18n } from '@/hooks/use-i18n';
 import { formatExactCreditsFromMillions, formatStatNumber } from '@/lib/formatters';
 import { translateMatchStatus } from '@/lib/i18n';
 import { shouldShowHomeFirst } from '@/lib/match-order';
 import { cycleThreeStateSort, sortItemsByState, type SortState } from '@/lib/table-sort';
-import { matchesApi } from '@/services/dream5-api';
+import { matchesApi } from '@/services/dreamfive-api';
 import { mapMatchDtoToUi } from '@/services/mappers';
 
 type BoxScoreSortKey =
@@ -41,7 +41,7 @@ type BoxScoreSortKey =
   | 'fantasyPoints';
 
 export function MatchesPage() {
-  const { activeLeague } = useDream5State();
+  const { activeLeague } = useDreamFiveState();
   const { getTriggerProps, inspectPlayer } = usePlayerContextMenu();
   const { showToast } = useToast();
   const { language, locale, t, f } = useI18n();
@@ -333,7 +333,7 @@ export function MatchesPage() {
                         <CardTitle className="text-sm">{t.matchesPage.boxScoreTitle}</CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <div className="dream5-table-scroll rounded-lg border border-border/70 bg-surface-deep/70">
+                        <div className="dreamfive-table-scroll rounded-lg border border-border/70 bg-surface-deep/70">
                           <table className="w-full min-w-[780px] border-collapse text-left text-xs">
                             <thead>
                               <tr className="border-b border-border bg-surface-elevated/90 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">

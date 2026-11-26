@@ -1,6 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
-  "display": "DREAM5 — aplicaciones NestJS (API y worker)",
+  "display": "DreamFive — aplicaciones NestJS (API y worker)",
   "extends": "./base.json",
   "compilerOptions": {
     "module": "NodeNext",

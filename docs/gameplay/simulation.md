@@ -1,6 +1,6 @@
 # Motor deportivo y simulación 24/7
 
-El corazón deportivo de DREAM5 reside en `@dream5/simulation-engine` (paquete TypeScript puro sin dependencias de red, NestJS ni Prisma) y se ejecuta tanto de forma autónoma en `apps/worker` como bajo demanda desde la consola de simulación (`/simulation` o endpoints `/dev/leagues/:leagueId/*`).
+El corazón deportivo de DreamFive reside en `@dreamfive/simulation-engine` (paquete TypeScript puro sin dependencias de red, NestJS ni Prisma) y se ejecuta tanto de forma autónoma en `apps/worker` como bajo demanda desde la consola de simulación (`/simulation` o endpoints `/dev/leagues/:leagueId/*`).
 
 ## Flujo de simulación de una jornada
 
@@ -21,5 +21,5 @@ El corazón deportivo de DREAM5 reside en `@dream5/simulation-engine` (paquete T
 
 El proceso `apps/worker` registra en Redis/BullMQ (`LeagueCronScheduler`):
 
-- **`dream5-24x7-tick`:** comprueba periódicamente las ligas `ACTIVE` y encola la simulación de toda jornada cuya hora programada sea menor o igual al reloj operativo correspondiente, así como los cambios de temporada pendientes al completar la jornada 58.
-- **`dream5-hourly-market`:** recalcula los precios de mercado de forma periódica emitiendo eventos `league:market.updated` hacia Redis Pub/Sub → Socket.IO.
+- **`dreamfive-24x7-tick`:** comprueba periódicamente las ligas `ACTIVE` y encola la simulación de toda jornada cuya hora programada sea menor o igual al reloj operativo correspondiente, así como los cambios de temporada pendientes al completar la jornada 58.
+- **`dreamfive-hourly-market`:** recalcula los precios de mercado de forma periódica emitiendo eventos `league:market.updated` hacia Redis Pub/Sub → Socket.IO.

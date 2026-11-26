@@ -1,8 +1,8 @@
 {
-  "name": "@dream5/config",
+  "name": "@dreamfive/config",
   "version": "0.1.0",
   "private": true,
-  "description": "Configuración compartida de TypeScript, ESLint y Prettier para DREAM5",
+  "description": "Configuración compartida de TypeScript, ESLint y Prettier para DreamFive",
   "type": "module",
   "exports": {
     "./eslint": "./eslint/index.js",

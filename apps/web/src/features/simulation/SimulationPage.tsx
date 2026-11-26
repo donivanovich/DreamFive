@@ -19,8 +19,8 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { useToast } from '@/components/ui/toast-context';
-import { useDream5State } from '@/hooks/use-dream5-state';
-import { devApi } from '@/services/dream5-api';
+import { useDreamFiveState } from '@/hooks/use-dreamfive-state';
+import { devApi } from '@/services/dreamfive-api';
 
 const ACTIVITY_LABELS: Record<string, string> = {
   'simulate-round': 'Simulación de jornada',
@@ -87,7 +87,8 @@ function formatCountdown(remainingMs: number): string {
 export function SimulationPage() {
   const queryClient = useQueryClient();
   const { showToast } = useToast();
-  const { activeLeague, refreshSession, isSimulationAdmin, realtimeConnected } = useDream5State();
+  const { activeLeague, refreshSession, isSimulationAdmin, realtimeConnected } =
+    useDreamFiveState();
   const leagueId = activeLeague?.id ?? null;
   const [nowClientMs, setNowClientMs] = useState<number | null>(null);
 
@@ -222,8 +223,8 @@ export function SimulationPage() {
       <Card>
         <CardContent className="flex items-center gap-3 py-8 text-sm text-muted-foreground">
           <ShieldAlert className="h-5 w-5 text-amber-400" />
-          Solo el administrador autorizado (`ivan.k@dream5.local`) puede acceder y ejecutar
-          simulaciones manuales. El worker 24/7 continúa procesando el universo de forma automática.
+          Solo el administrador autorizado puede acceder y ejecutar simulaciones manuales. El worker
+          24/7 continúa procesando el universo de forma automática.
         </CardContent>
       </Card>
     );

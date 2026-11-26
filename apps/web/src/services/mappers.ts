@@ -10,7 +10,7 @@ import {
   type StandingEntryDto,
   type TransferOfferDto,
   type TransferStatus as SharedTransferStatus,
-} from '@dream5/shared';
+} from '@dreamfive/shared';
 
 import { getLocaleCode } from '@/lib/i18n';
 

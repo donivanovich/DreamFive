@@ -1,6 +1,6 @@
-# `@dream5/simulation-engine` — Motor de Simulación Deportiva
+# `@dreamfive/simulation-engine` — Motor de Simulación Deportiva
 
-Paquete TypeScript puro e independiente que encapsulará toda la lógica matemática y deportiva de DREAM5.
+Paquete TypeScript puro e independiente que encapsulará toda la lógica matemática y deportiva de DreamFive.
 
 ## Responsabilidad
 

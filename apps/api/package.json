@@ -1,11 +1,11 @@
 {
-  "name": "@dream5/api",
+  "name": "@dreamfive/api",
   "version": "0.1.0",
   "private": true,
-  "description": "API HTTP y tiempo real de DREAM5 (NestJS + Fastify + Socket.IO)",
+  "description": "API HTTP y tiempo real de DreamFive (NestJS + Fastify + Socket.IO)",
   "type": "module",
   "scripts": {
-    "build": "pnpm run clean && tsc -p tsconfig.build.json && node -e \"const fs=require('node:fs');fs.mkdirSync('dist/assets',{recursive:true});fs.copyFileSync('src/assets/dream5-logo.png','dist/assets/dream5-logo.png')\"",
+    "build": "pnpm run clean && tsc -p tsconfig.build.json && node -e \"const fs=require('node:fs');fs.mkdirSync('dist/assets',{recursive:true});fs.copyFileSync('src/assets/dreamfive-logo.png','dist/assets/dreamfive-logo.png')\"",
     "dev": "pnpm run build && concurrently -k -n tsc,api -c cyan,green \"tsc -p tsconfig.build.json --watch --preserveWatchOutput\" \"node --watch dist/main.js\"",
     "start": "node dist/main.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -14,9 +14,9 @@
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\""
   },
   "dependencies": {
-    "@dream5/database": "workspace:*",
-    "@dream5/shared": "workspace:*",
-    "@dream5/simulation-engine": "workspace:*",
+    "@dreamfive/database": "workspace:*",
+    "@dreamfive/shared": "workspace:*",
+    "@dreamfive/simulation-engine": "workspace:*",
     "@fastify/helmet": "13.2.0",
     "@fastify/multipart": "10.1.8",
     "@fastify/static": "10.1.10",
@@ -39,7 +39,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@dream5/config": "workspace:*",
+    "@dreamfive/config": "workspace:*",
     "@nestjs/testing": "catalog:",
     "@swc/core": "catalog:",
     "@types/node": "catalog:",

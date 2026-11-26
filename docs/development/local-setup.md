@@ -1,6 +1,6 @@
 # Puesta en marcha con Docker Compose
 
-Guía verificada para levantar todo el sistema **DREAM5** (PostgreSQL 18, Redis 8, migraciones automáticas, seed, API Fastify, Worker 24/7 y aplicación Web) mediante un único comando Docker Compose.
+Guía verificada para levantar todo el sistema **DreamFive** (PostgreSQL 18, Redis 8, migraciones automáticas, seed, API Fastify, Worker 24/7 y aplicación Web) mediante un único comando Docker Compose.
 
 ## 1. Requisitos previos
 

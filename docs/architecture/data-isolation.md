@@ -1,6 +1,6 @@
 # Aislamiento de datos entre ligas
 
-En **DREAM5**, cada liga privada constituye un universo deportivo y económico completamente independiente. Un traspaso, partido simulado, lesión, expulsión, cambio de rol o variación de precio en una liga **nunca** puede propagarse a otra liga.
+En **DreamFive**, cada liga privada constituye un universo deportivo y económico completamente independiente. Un traspaso, partido simulado, lesión, expulsión, cambio de rol o variación de precio en una liga **nunca** puede propagarse a otra liga.
 
 ## Mecanismos implementados en base de datos
 

@@ -13,7 +13,7 @@ import { setupSwagger, SWAGGER_PATH } from './config/swagger.js';
 import { SecureIoAdapter } from './realtime/secure-io.adapter.js';
 
 /**
- * Punto de entrada de la API de DREAM5.
+ * Punto de entrada de la API de DreamFive.
  *
  * Solo arranca la infraestructura (HTTP, seguridad, logging, Socket.IO,
  * colas y salud). No registra endpoints de negocio.

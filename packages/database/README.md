@@ -1,4 +1,4 @@
-# `@dream5/database` — Persistencia PostgreSQL y Prisma ORM
+# `@dreamfive/database` — Persistencia PostgreSQL y Prisma ORM
 
 Paquete centralizado para la definición del esquema de base de datos, migraciones y creación del cliente **Prisma ORM 7**.
 

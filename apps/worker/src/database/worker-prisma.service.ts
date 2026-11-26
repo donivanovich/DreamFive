@@ -1,5 +1,5 @@
 import { Inject, Injectable, type OnModuleDestroy } from '@nestjs/common';
-import { createPrismaClient, type PrismaClient } from '@dream5/database';
+import { createPrismaClient, type PrismaClient } from '@dreamfive/database';
 
 import type { WorkerEnv } from '../config/env.schema.js';
 import { WORKER_ENV } from '../config/worker-config.module.js';

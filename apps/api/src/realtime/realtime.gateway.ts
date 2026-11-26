@@ -7,7 +7,7 @@ import {
   SubscribeMessage,
   WebSocketGateway,
 } from '@nestjs/websockets';
-import { SOCKET_EVENTS } from '@dream5/shared';
+import { SOCKET_EVENTS } from '@dreamfive/shared';
 import type { Server, Socket } from 'socket.io';
 
 import { parseCookieHeader } from '../common/http-cookies.js';

@@ -27,7 +27,7 @@ import {
   resendVerificationSchema,
   type VerifyEmailInput,
   verifyEmailSchema,
-} from '@dream5/shared';
+} from '@dreamfive/shared';
 
 import {
   type AuthenticatedFastifyRequest,

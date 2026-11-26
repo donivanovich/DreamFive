@@ -1,6 +1,6 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
-import { repriceLeagueMarket } from '@dream5/database';
-import { JOB_NAMES, QUEUE_NAMES, SOCKET_EVENTS } from '@dream5/shared';
+import { repriceLeagueMarket } from '@dreamfive/database';
+import { JOB_NAMES, QUEUE_NAMES, SOCKET_EVENTS } from '@dreamfive/shared';
 import type { Job } from 'bullmq';
 
 import { WorkerPrismaService } from '../database/worker-prisma.service.js';

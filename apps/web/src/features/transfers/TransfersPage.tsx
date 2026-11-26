@@ -3,7 +3,7 @@ import { useLocation } from '@tanstack/react-router';
 import { ArrowLeftRight, CheckCircle2, Send } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
-import { localizeTransferResponseNote, type TransferBlockReason } from '@dream5/shared';
+import { localizeTransferResponseNote, type TransferBlockReason } from '@dreamfive/shared';
 
 import { PlayerAvatar, PositionBadge, TeamLogo } from '@/components/players/PlayerBadges';
 import { dtoToContextTarget, usePlayerContextMenu } from '@/components/players/player-context';
@@ -16,11 +16,11 @@ import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { useToast } from '@/components/ui/toast-context';
-import { useDream5State } from '@/hooks/use-dream5-state';
+import { useDreamFiveState } from '@/hooks/use-dreamfive-state';
 import { useI18n } from '@/hooks/use-i18n';
 import { formatExactCreditsFromMillions, formatMillions } from '@/lib/formatters';
 import { formatTransferLockBadge } from '@/lib/i18n';
-import { teamsApi, transfersApi } from '@/services/dream5-api';
+import { teamsApi, transfersApi } from '@/services/dreamfive-api';
 import { mapTransferOfferDtoToUi } from '@/services/mappers';
 import type { Position } from '@/types/fantasy';
 
@@ -30,7 +30,7 @@ export function TransfersPage() {
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const { getTriggerProps } = usePlayerContextMenu();
-  const { activeLeague } = useDream5State();
+  const { activeLeague } = useDreamFiveState();
   const { language, locale, t, f } = useI18n();
   const leagueId = activeLeague?.id ?? null;
   const location = useLocation();

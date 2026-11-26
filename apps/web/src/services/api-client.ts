@@ -1,4 +1,4 @@
-const STORAGE_TOKEN_KEY = 'dream5_access_token';
+const STORAGE_TOKEN_KEY = 'dreamfive_access_token';
 
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1']);
 

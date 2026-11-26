@@ -1,5 +1,5 @@
 /**
- * Punto de entrada público de @dream5/database.
+ * Punto de entrada público de @dreamfive/database.
  *
  * Expone una factoría de PrismaClient independiente de cualquier framework.
  * Las aplicaciones (API y worker) la envuelven en su propio proveedor de

@@ -5,7 +5,7 @@ import {
   type LeagueMailDto,
   type LeagueMailListResponseDto,
   SOCKET_EVENTS,
-} from '@dream5/shared';
+} from '@dreamfive/shared';
 
 import { PrismaService } from '../../database/prisma.service.js';
 import { RealtimeService } from '../../realtime/realtime.service.js';

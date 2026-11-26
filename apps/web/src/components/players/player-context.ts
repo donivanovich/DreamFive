@@ -3,7 +3,7 @@ import type {
   PlayerInstanceDto,
   PlayerRole as SharedRole,
   Position,
-} from '@dream5/shared';
+} from '@dreamfive/shared';
 import {
   createContext,
   type MouseEvent as ReactMouseEvent,

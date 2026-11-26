@@ -1,5 +1,5 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
-import { QUEUE_NAMES } from '@dream5/shared';
+import { QUEUE_NAMES } from '@dreamfive/shared';
 import type { Job } from 'bullmq';
 
 import { WorkerPrismaService } from '../database/worker-prisma.service.js';

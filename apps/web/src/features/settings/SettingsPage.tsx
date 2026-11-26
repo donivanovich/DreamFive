@@ -1,18 +1,18 @@
-import { LEAGUE_RULES, PROVISIONAL_GAME_CONFIG } from '@dream5/shared';
+import { LEAGUE_RULES, PROVISIONAL_GAME_CONFIG } from '@dreamfive/shared';
 import { Bell, Check, Globe, Moon, Palette, Sliders, Sun } from 'lucide-react';
 
 import { PageHeader } from '@/components/shared/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Switch } from '@/components/ui/Switch';
 import { useToast } from '@/components/ui/toast-context';
-import { useDream5State } from '@/hooks/use-dream5-state';
+import { useDreamFiveState } from '@/hooks/use-dreamfive-state';
 import { useI18n } from '@/hooks/use-i18n';
 import { ACCENT_SWATCHES } from '@/lib/appearance';
 import { cn } from '@/lib/utils';
 
 export function SettingsPage() {
   const { showToast } = useToast();
-  const { preferences, appearance, updatePreference, updateAppearance } = useDream5State();
+  const { preferences, appearance, updatePreference, updateAppearance } = useDreamFiveState();
   const { t } = useI18n();
 
   const togglePreference = async (

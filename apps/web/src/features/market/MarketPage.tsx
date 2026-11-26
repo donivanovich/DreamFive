@@ -15,19 +15,19 @@ import { SortableHeaderCell } from '@/components/shared/SortableTable';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
-import { useDream5State } from '@/hooks/use-dream5-state';
+import { useDreamFiveState } from '@/hooks/use-dreamfive-state';
 import { useI18n } from '@/hooks/use-i18n';
 import { formatMillions } from '@/lib/formatters';
 import { translateMarketMode } from '@/lib/i18n';
 import { cycleThreeStateSort, sortItemsByState, type SortState } from '@/lib/table-sort';
-import { marketApi } from '@/services/dream5-api';
+import { marketApi } from '@/services/dreamfive-api';
 import { mapPlayerDtoToUi } from '@/services/mappers';
 
 type MovementSortKey =
   'playerName' | 'position' | 'teamCode' | 'reason' | 'priceMillions' | 'deltaMillions';
 
 export function MarketPage() {
-  const { activeLeague, preferences } = useDream5State();
+  const { activeLeague, preferences } = useDreamFiveState();
   const { getTriggerProps } = usePlayerContextMenu();
   const { language, t, f } = useI18n();
   const leagueId = activeLeague?.id ?? null;
@@ -129,7 +129,7 @@ export function MarketPage() {
               {sortedMovements.length === 0 ? (
                 <p className="text-sm text-muted-foreground">{t.marketPage.noMovements}</p>
               ) : (
-                <div className="dream5-table-scroll rounded-lg border border-border bg-surface-deep/75">
+                <div className="dreamfive-table-scroll rounded-lg border border-border bg-surface-deep/75">
                   <table className="w-full min-w-[640px] border-collapse text-left text-xs">
                     <thead>
                       <tr className="border-b border-border bg-surface-elevated/90 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">

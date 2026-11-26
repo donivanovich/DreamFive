@@ -1,8 +1,11 @@
-import { ADMIN_SIMULATION_EMAIL, type AuthUserDto } from '@dream5/shared';
+import { ADMIN_SIMULATION_EMAIL, type AuthUserDto } from '@dreamfive/shared';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 
-import { Dream5StateContext, type Dream5StateContextValue } from '@/hooks/use-dream5-state';
+import {
+  DreamFiveStateContext,
+  type DreamFiveStateContextValue,
+} from '@/hooks/use-dreamfive-state';
 import {
   type AppearanceSettings,
   applyAppearanceToDocument,
@@ -13,11 +16,11 @@ import {
   readStoredAppearance,
   writeStoredAppearance,
 } from '@/lib/appearance';
-import { authApi, invitationsApi, leaguesApi, mailApi, usersApi } from '@/services/dream5-api';
+import { authApi, invitationsApi, leaguesApi, mailApi, usersApi } from '@/services/dreamfive-api';
 import { useLeagueRealtime } from '@/services/use-league-realtime';
 import type { UserPreferences } from '@/types/fantasy';
 
-const ACTIVE_LEAGUE_STORAGE_KEY = 'dream5_active_league_id';
+const ACTIVE_LEAGUE_STORAGE_KEY = 'dreamfive_active_league_id';
 
 const FALLBACK_PREFERENCES: UserPreferences = {
   tradeAlerts: true,
@@ -27,7 +30,7 @@ const FALLBACK_PREFERENCES: UserPreferences = {
   ...DEFAULT_APPEARANCE,
 };
 
-export function Dream5StateProvider({ children }: { readonly children: ReactNode }) {
+export function DreamFiveStateProvider({ children }: { readonly children: ReactNode }) {
   const queryClient = useQueryClient();
   const [selectedLeagueId, setSelectedLeagueId] = useState<string | null>(null);
   const [guestAppearance, setGuestAppearance] = useState<AppearanceSettings>(() =>
@@ -209,7 +212,7 @@ export function Dream5StateProvider({ children }: { readonly children: ReactNode
     [user?.preferences, appearance],
   );
 
-  const value = useMemo<Dream5StateContextValue>(
+  const value = useMemo<DreamFiveStateContextValue>(
     () => ({
       user,
       isAuthLoading: authQuery.isLoading,
@@ -250,5 +253,5 @@ export function Dream5StateProvider({ children }: { readonly children: ReactNode
     ],
   );
 
-  return <Dream5StateContext.Provider value={value}>{children}</Dream5StateContext.Provider>;
+  return <DreamFiveStateContext.Provider value={value}>{children}</DreamFiveStateContext.Provider>;
 }

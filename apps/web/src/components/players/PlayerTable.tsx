@@ -96,7 +96,7 @@ export function PlayerTable({
   );
 
   return (
-    <div className="dream5-table-scroll rounded-lg border border-border bg-card">
+    <div className="dreamfive-table-scroll rounded-lg border border-border bg-card">
       <table className="w-full min-w-[680px] border-collapse text-left text-sm">
         <thead>
           <tr className="border-b border-border bg-surface-deep/70 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">

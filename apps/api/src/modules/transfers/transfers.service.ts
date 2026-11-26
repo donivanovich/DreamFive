@@ -15,14 +15,14 @@ import {
   recordHumanTeamMailsInTx,
   resolveMailSeasonIdInTx,
   TransferValidationError,
-} from '@dream5/database';
+} from '@dreamfive/database';
 import {
   type CreateTransferOfferInput,
   SOCKET_EVENTS,
   type TransferBlockedPlayerDto,
   type TransferOfferDto,
   type TransferPlayerSummaryDto,
-} from '@dream5/shared';
+} from '@dreamfive/shared';
 
 import { PrismaService } from '../../database/prisma.service.js';
 import { RealtimeService } from '../../realtime/realtime.service.js';

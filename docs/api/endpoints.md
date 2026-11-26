@@ -1,6 +1,6 @@
 # Referencia de endpoints REST y WebSockets
 
-La API corre bajo **NestJS + Fastify** (puerto `3101` en `.env`, Swagger interactivo en `/docs` solo en desarrollo). Todas las rutas protegidas aceptan cookie `HttpOnly` (`dream5_session`) o cabecera `Authorization: Bearer <token>`.
+La API corre bajo **NestJS + Fastify** (puerto `3101` en `.env`, Swagger interactivo en `/docs` solo en desarrollo). Todas las rutas protegidas aceptan cookie `HttpOnly` (`dreamfive_session`) o cabecera `Authorization: Bearer <token>`.
 
 ## Endpoints públicos y de usuario
 
@@ -62,9 +62,9 @@ La API corre bajo **NestJS + Fastify** (puerto `3101` en `.env`, Swagger interac
 | `POST /leagues/:leagueId/transfers/:offerId/reject`  | Rechaza oferta entrante pendiente (bloquea 1 partido a ambos jugadores implicados)                                                                                                                                                            |
 | `POST /leagues/:leagueId/transfers/:offerId/cancel`  | Retira una oferta saliente enviada por tu equipo                                                                                                                                                                                              |
 | `GET /leagues/:leagueId/seasons`                     | Lista historial de temporadas de la liga                                                                                                                                                                                                      |
-| `POST /leagues/:leagueId/seasons/advance`            | Solo administrador de simulación (`ivan.k@dream5.local` via `AdminSimulationGuard`): avanza de temporada                                                                                                                                      |
+| `POST /leagues/:leagueId/seasons/advance`            | Solo administrador de simulación (`ivan.k@dreamfive.local` via `AdminSimulationGuard`): avanza de temporada                                                                                                                                   |
 
-## Consola de simulación (`AdminSimulationGuard` — solo `ivan.k@dream5.local`)
+## Consola de simulación (`AdminSimulationGuard` — solo `ivan.k@dreamfive.local`)
 
 | Método y ruta                                | Descripción                                                          |
 | -------------------------------------------- | -------------------------------------------------------------------- |

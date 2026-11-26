@@ -1,5 +1,5 @@
 import { Inject, Injectable, type OnModuleDestroy } from '@nestjs/common';
-import { createPrismaClient, type PrismaClient } from '@dream5/database';
+import { createPrismaClient, type PrismaClient } from '@dreamfive/database';
 
 import { API_ENV } from '../config/app-config.module.js';
 import type { ApiEnv } from '../config/env.schema.js';

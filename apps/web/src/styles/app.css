@@ -1,5 +1,5 @@
 /*
- * Hoja de estilos global de DREAM5.
+ * Hoja de estilos global de DreamFive.
  * Tailwind CSS v4 (configuración CSS-first) + tokens visuales dark-first
  * alineados con la referencia de producto.
  */
@@ -122,7 +122,7 @@
   background: #2f4056;
 }
 
-.dream5-table-scroll {
+.dreamfive-table-scroll {
   width: 100%;
   max-width: 100%;
   min-width: 0;
@@ -133,21 +133,21 @@
   scrollbar-color: #475569 transparent;
 }
 
-.dream5-table-scroll::-webkit-scrollbar {
+.dreamfive-table-scroll::-webkit-scrollbar {
   height: 8px;
 }
 
-.dream5-table-scroll::-webkit-scrollbar-track {
+.dreamfive-table-scroll::-webkit-scrollbar-track {
   background: color-mix(in srgb, var(--surface-deep) 80%, transparent);
   border-radius: 9999px;
 }
 
-.dream5-table-scroll::-webkit-scrollbar-thumb {
+.dreamfive-table-scroll::-webkit-scrollbar-thumb {
   background: color-mix(in srgb, var(--muted-foreground) 45%, transparent);
   border-radius: 9999px;
 }
 
-.dream5-table-scroll::-webkit-scrollbar-thumb:hover {
+.dreamfive-table-scroll::-webkit-scrollbar-thumb:hover {
   background: color-mix(in srgb, var(--muted-foreground) 70%, transparent);
 }
 

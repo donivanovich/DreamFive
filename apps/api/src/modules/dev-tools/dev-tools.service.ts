@@ -12,7 +12,7 @@ import {
   simulateRoundForLeague,
   simulateScheduledMatchAndProgress,
   syncLeagueClockToRealTime,
-} from '@dream5/database';
+} from '@dreamfive/database';
 import {
   type AdvanceGameClockInput,
   type DevLeagueStatusDto,
@@ -20,7 +20,7 @@ import {
   QUEUE_NAMES,
   SOCKET_EVENTS,
   type SyncClockResponseDto,
-} from '@dream5/shared';
+} from '@dreamfive/shared';
 import { type Queue, QueueEvents } from 'bullmq';
 
 import { API_ENV } from '../../config/app-config.module.js';

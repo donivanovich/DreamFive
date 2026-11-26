@@ -18,7 +18,7 @@ export interface TradeEvaluation {
 
 /**
  * Evalúa visualmente en el prototipo si una propuesta de intercambio cumple las
- * restricciones conocidas de DREAM5 (18 jugadores, mínimo 1 por posición y al
+ * restricciones conocidas de DreamFive (18 jugadores, mínimo 1 por posición y al
  * menos el 50 % del valor del jugador o jugadores deseados).
  *
  * La validación autoritativa pertenecerá siempre al backend.

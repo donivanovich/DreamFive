@@ -1,8 +1,8 @@
 # Decisiones técnicas de arquitectura (ADR)
 
-Este documento resume las decisiones implementadas en el prototipo Full Stack de **DREAM5**.
+Este documento resume las decisiones implementadas en el prototipo Full Stack de **DreamFive**.
 
-## ADR-01: Lógica transaccional compartida en `@dream5/database`
+## ADR-01: Lógica transaccional compartida en `@dreamfive/database`
 
 - **Decisión:** los servicios críticos que mutan el universo de una liga (`instantiateLeague`, `joinLeagueWithRandomTeamInTx`, `simulateRoundForLeague`, `repriceLeagueMarket`, `advanceSeasonForLeague`, `createAndEvaluateTransferOffer`, `executeAcceptedTransferInTx`) residen en `packages/database/src/services/`.
 - **Motivo:** tanto `apps/api` (acciones síncronas del usuario o consola `/simulation`) como `apps/worker` (trabajos 24/7 sin usuarios conectados) ejecutan exactamente las mismas garantías ACID y reglas de negocio, evitando divergencias entre el modo automático y las herramientas de prueba.
@@ -15,7 +15,7 @@ Este documento resume las decisiones implementadas en el prototipo Full Stack de
 
 ## ADR-03: Comunicación Worker → API → Cliente vía Redis Pub/Sub
 
-- **Decisión:** `apps/worker` nunca abre conexiones WebSocket hacia los navegadores. Al completar una simulación, actualización de mercado o salto de temporada, publica un evento JSON estructurado en el canal Redis `dream5:realtime:league-events` (`REDIS_CHANNELS.leagueRealtimeEvents`). `apps/api` se suscribe en `RealtimeService` y retransmite únicamente a la sala autenticada `league:<leagueId>`.
+- **Decisión:** `apps/worker` nunca abre conexiones WebSocket hacia los navegadores. Al completar una simulación, actualización de mercado o salto de temporada, publica un evento JSON estructurado en el canal Redis `dreamfive:realtime:league-events` (`REDIS_CHANNELS.leagueRealtimeEvents`). `apps/api` se suscribe en `RealtimeService` y retransmite únicamente a la sala autenticada `league:<leagueId>`.
 - **Motivo:** mantiene al _worker_ completamente desacoplado de HTTP/WebSockets y permite escalar horizontalmente múltiples instancias de _worker_.
 
 ## ADR-04: Identidad de mánager y autenticación sin dependencias externas

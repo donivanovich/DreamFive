@@ -1,8 +1,8 @@
 {
-  "name": "@dream5/worker",
+  "name": "@dreamfive/worker",
   "version": "0.1.0",
   "private": true,
-  "description": "Worker de trabajos en segundo plano de DREAM5 (NestJS standalone + BullMQ)",
+  "description": "Worker de trabajos en segundo plano de DreamFive (NestJS standalone + BullMQ)",
   "type": "module",
   "scripts": {
     "build": "pnpm run clean && tsc -p tsconfig.build.json",
@@ -15,9 +15,9 @@
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\""
   },
   "dependencies": {
-    "@dream5/database": "workspace:*",
-    "@dream5/shared": "workspace:*",
-    "@dream5/simulation-engine": "workspace:*",
+    "@dreamfive/database": "workspace:*",
+    "@dreamfive/shared": "workspace:*",
+    "@dreamfive/simulation-engine": "workspace:*",
     "@nestjs/bullmq": "catalog:",
     "@nestjs/common": "catalog:",
     "@nestjs/core": "catalog:",
@@ -31,7 +31,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@dream5/config": "workspace:*",
+    "@dreamfive/config": "workspace:*",
     "@nestjs/testing": "catalog:",
     "@swc/core": "catalog:",
     "@types/node": "catalog:",

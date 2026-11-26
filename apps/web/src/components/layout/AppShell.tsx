@@ -26,7 +26,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { AuthPage } from '@/features/auth/AuthPage';
 import { useAppearanceBackgroundHandlers } from '@/hooks/use-appearance-background';
-import { useDream5State } from '@/hooks/use-dream5-state';
+import { useDreamFiveState } from '@/hooks/use-dreamfive-state';
 import { useI18n } from '@/hooks/use-i18n';
 import { translateLeagueRole, translateLeagueStatus } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
@@ -86,7 +86,7 @@ function SidebarContent({
   readonly pendingInvitationsCount: number;
   readonly onNavigate?: () => void;
 }) {
-  const { isSimulationAdmin, unreadMailCount } = useDream5State();
+  const { isSimulationAdmin, unreadMailCount } = useDreamFiveState();
   const { language, t } = useI18n();
 
   return (
@@ -94,13 +94,13 @@ function SidebarContent({
       <div className="flex h-16 items-center justify-between border-b border-border px-4">
         <Link to="/" onClick={onNavigate} className="flex items-center gap-3 focus:outline-none">
           <img
-            src="/dream5-logo.png"
-            alt="DREAM5"
+            src="/dreamfive-logo.png"
+            alt="DreamFive"
             className="h-9 w-9 shrink-0 object-contain drop-shadow-[0_2px_10px_color-mix(in_srgb,var(--primary)_22%,transparent)]"
           />
           <span className="flex flex-col leading-none">
             <span className="font-display text-xl font-bold tracking-wider text-foreground">
-              DREAM5
+              DreamFive
             </span>
             <span className="mt-0.5 text-[10px] font-semibold tracking-[0.18em] text-muted-foreground uppercase">
               BASKET MANAGER
@@ -234,7 +234,7 @@ function SidebarContent({
 
       <div className="border-t border-border px-4 py-3 text-[11px] text-muted-foreground">
         <p className="font-semibold tracking-wider text-foreground/80 uppercase">
-          DREAM5 · League Desk
+          DreamFive · League Desk
         </p>
         <p className="mt-0.5 text-[10px] text-muted-foreground">
           {language === 'es'
@@ -256,7 +256,7 @@ export function AppShell({ children }: { readonly children: ReactNode }) {
     setActiveLeagueId,
     pendingInvitationsCount,
     logout,
-  } = useDream5State();
+  } = useDreamFiveState();
   const { language, t } = useI18n();
   const { menuPos, closeMenu, backgroundHandlers } = useAppearanceBackgroundHandlers();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -303,12 +303,12 @@ export function AppShell({ children }: { readonly children: ReactNode }) {
         <div className="mx-auto mb-8 flex max-w-lg items-center gap-3">
           <Link to="/" className="flex items-center gap-3 focus:outline-none">
             <img
-              src="/dream5-logo.png"
-              alt="DREAM5"
+              src="/dreamfive-logo.png"
+              alt="DreamFive"
               className="h-10 w-10 shrink-0 object-contain drop-shadow-[0_2px_10px_color-mix(in_srgb,var(--primary)_22%,transparent)]"
             />
             <div>
-              <p className="font-display text-2xl font-bold tracking-wider uppercase">DREAM5</p>
+              <p className="font-display text-2xl font-bold tracking-wider uppercase">DreamFive</p>
               <p className="text-xs text-muted-foreground">{t.common.appSubtitle}</p>
             </div>
           </Link>
@@ -327,12 +327,12 @@ export function AppShell({ children }: { readonly children: ReactNode }) {
       >
         <div className="mx-auto mb-8 flex max-w-5xl items-center gap-3">
           <img
-            src="/dream5-logo.png"
-            alt="DREAM5"
+            src="/dreamfive-logo.png"
+            alt="DreamFive"
             className="h-10 w-10 shrink-0 object-contain drop-shadow-[0_2px_10px_color-mix(in_srgb,var(--primary)_22%,transparent)]"
           />
           <div>
-            <p className="font-display text-2xl font-bold tracking-wider uppercase">DREAM5</p>
+            <p className="font-display text-2xl font-bold tracking-wider uppercase">DreamFive</p>
             <p className="text-xs text-muted-foreground">{t.common.appSubtitle}</p>
           </div>
         </div>

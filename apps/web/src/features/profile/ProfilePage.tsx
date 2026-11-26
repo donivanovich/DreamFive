@@ -25,17 +25,17 @@ import { ModalDialog } from '@/components/ui/Dialog';
 import { Input } from '@/components/ui/Input';
 import { PasswordInput } from '@/components/ui/PasswordInput';
 import { useToast } from '@/components/ui/toast-context';
-import { useDream5State } from '@/hooks/use-dream5-state';
+import { useDreamFiveState } from '@/hooks/use-dreamfive-state';
 import { useI18n } from '@/hooks/use-i18n';
 import { formatLocaleDecimal, formatMillions } from '@/lib/formatters';
 import { translateLeagueRole } from '@/lib/i18n';
-import { usersApi } from '@/services/dream5-api';
+import { usersApi } from '@/services/dreamfive-api';
 
 export function ProfilePage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
-  const { user, leagues, refreshSession } = useDream5State();
+  const { user, leagues, refreshSession } = useDreamFiveState();
   const { language, locale, t, f } = useI18n();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -465,7 +465,7 @@ export function ProfilePage() {
                     id="profile-new-email"
                     type="email"
                     autoComplete="email"
-                    placeholder="new@dream5.local"
+                    placeholder="new@dreamfive.local"
                     value={newEmail}
                     onChange={(event) => {
                       setNewEmail(event.target.value);

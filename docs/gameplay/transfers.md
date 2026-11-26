@@ -1,6 +1,6 @@
 # Sistema de traspasos entre equipos
 
-El sistema de traspasos de **DREAM5** (`packages/database/src/services/transfer-engine.ts`) garantiza la integridad deportiva y contable de cada operación mediante validación previa + transacción PostgreSQL ACID.
+El sistema de traspasos de **DreamFive** (`packages/database/src/services/transfer-engine.ts`) garantiza la integridad deportiva y contable de cada operación mediante validación previa + transacción PostgreSQL ACID.
 
 ## Invariantes obligatorias en todo intercambio
 

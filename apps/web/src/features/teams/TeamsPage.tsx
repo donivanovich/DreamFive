@@ -13,14 +13,14 @@ import { PageHeader } from '@/components/shared/PageHeader';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
-import { useDream5State } from '@/hooks/use-dream5-state';
+import { useDreamFiveState } from '@/hooks/use-dreamfive-state';
 import { useI18n } from '@/hooks/use-i18n';
 import { formatMillions, formatStatNumber } from '@/lib/formatters';
-import { lineupApi, teamsApi } from '@/services/dream5-api';
+import { lineupApi, teamsApi } from '@/services/dreamfive-api';
 import { mapPlayerDtoToUi } from '@/services/mappers';
 
 export function TeamsPage() {
-  const { activeLeague, preferences } = useDream5State();
+  const { activeLeague, preferences } = useDreamFiveState();
   const { t, f } = useI18n();
   const location = useLocation();
   const urlTeamId = useMemo(

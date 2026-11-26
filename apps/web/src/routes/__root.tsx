@@ -3,9 +3,9 @@ import { createRootRouteWithContext, HeadContent, Outlet, Scripts } from '@tanst
 import type { ReactNode } from 'react';
 
 import { AppShell } from '@/components/layout/AppShell';
-import { Dream5StateProvider } from '@/components/layout/Dream5Provider';
+import { DreamFiveStateProvider } from '@/components/layout/DreamFiveProvider';
 import { PlayerContextMenuProvider } from '@/components/players/PlayerContextMenu';
-import { Dream5ToastProvider } from '@/components/ui/Toast';
+import { DreamFiveToastProvider } from '@/components/ui/Toast';
 import { buildShareHeadMetadata } from '@/lib/seo-metadata';
 import appCss from '@/styles/app.css?url';
 
@@ -22,14 +22,14 @@ export const Route = createRootRouteWithContext<RouterContext>()({
       meta: [
         { charSet: 'utf-8' },
         { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-        { title: 'DREAM5' },
+        { title: 'DreamFive' },
         ...shareHead.meta,
       ],
       links: [
         ...shareHead.links,
         { rel: 'icon', href: '/favicon.ico', sizes: 'any' },
-        { rel: 'icon', type: 'image/png', href: '/dream5-logo.png', sizes: '256x256' },
-        { rel: 'apple-touch-icon', href: '/dream5-logo.png' },
+        { rel: 'icon', type: 'image/png', href: '/dreamfive-logo.png', sizes: '256x256' },
+        { rel: 'apple-touch-icon', href: '/dreamfive-logo.png' },
         { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
         { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossOrigin: 'anonymous' },
         {
@@ -48,15 +48,15 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   return (
     <QueryClientProvider client={queryClient}>
-      <Dream5ToastProvider>
-        <Dream5StateProvider>
+      <DreamFiveToastProvider>
+        <DreamFiveStateProvider>
           <PlayerContextMenuProvider>
             <AppShell>
               <Outlet />
             </AppShell>
           </PlayerContextMenuProvider>
-        </Dream5StateProvider>
-      </Dream5ToastProvider>
+        </DreamFiveStateProvider>
+      </DreamFiveToastProvider>
     </QueryClientProvider>
   );
 }

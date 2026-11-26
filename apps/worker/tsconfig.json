@@ -1,5 +1,5 @@
 {
-  "extends": "@dream5/config/typescript/nestjs.json",
+  "extends": "@dreamfive/config/typescript/nestjs.json",
   "compilerOptions": {
     "rootDir": ".",
     "noEmit": true

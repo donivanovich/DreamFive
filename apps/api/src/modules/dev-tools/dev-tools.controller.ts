@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { type AdvanceGameClockInput, advanceGameClockSchema } from '@dream5/shared';
+import { type AdvanceGameClockInput, advanceGameClockSchema } from '@dreamfive/shared';
 import { z } from 'zod';
 
 import {

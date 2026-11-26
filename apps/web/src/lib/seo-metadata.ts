@@ -5,15 +5,15 @@
  * `WEB_PUBLIC_URL` en tiempo de ejecución del servidor.
  */
 
-export const SITE_NAME = 'DREAM5';
-export const DEFAULT_SHARE_TITLE = 'DREAM5 — 24/7 Fantasy Basketball Manager';
+export const SITE_NAME = 'DreamFive';
+export const DEFAULT_SHARE_TITLE = 'DreamFive — 24/7 Fantasy Basketball Manager';
 export const DEFAULT_SHARE_DESCRIPTION =
   'Manage your starting five in isolated private fantasy basketball leagues with 24/7 match simulation, live dynamic market, player progression, and ACID trades.';
 export const OG_IMAGE_PATH = '/og-image.png';
 export const OG_IMAGE_WIDTH = '1200';
 export const OG_IMAGE_HEIGHT = '630';
 export const OG_IMAGE_TYPE = 'image/png';
-export const OG_IMAGE_ALT = 'DREAM5 — 24/7 Fantasy Basketball Manager preview card';
+export const OG_IMAGE_ALT = 'DreamFive — 24/7 Fantasy Basketball Manager preview card';
 export const THEME_COLOR = '#0b1016';
 
 export interface RouteShareCopy {
@@ -23,49 +23,49 @@ export interface RouteShareCopy {
 
 const ROUTE_SHARE_COPY: Readonly<Record<string, RouteShareCopy>> = {
   '/leagues': {
-    title: 'Private Leagues · DREAM5',
+    title: 'Private Leagues · DreamFive',
     description:
       'Create or join isolated 30-team fantasy basketball leagues with 58-round seasons and private invitations.',
   },
   '/lineup': {
-    title: 'Starting Five Lineup · DREAM5',
+    title: 'Starting Five Lineup · DreamFive',
     description:
       'Set your PG, SG, SF, PF, and C starters before tipoff lock to score Dream Points every round.',
   },
   '/market': {
-    title: 'Dynamic Player Market · DREAM5',
+    title: 'Dynamic Player Market · DreamFive',
     description:
-      'Track real-time basketball player valuations, trends, and market movers in your DREAM5 league.',
+      'Track real-time basketball player valuations, trends, and market movers in your DreamFive league.',
   },
   '/transfers': {
-    title: 'Transfer & Trade Desk · DREAM5',
+    title: 'Transfer & Trade Desk · DreamFive',
     description:
       'Negotiate multi-player trades and free-agent signings with strict roster rules and ACID guarantees.',
   },
   '/rankings': {
-    title: 'League Standings · DREAM5',
+    title: 'League Standings · DreamFive',
     description:
-      'Follow live season rankings, Dream Points totals, and championship races across your DREAM5 league.',
+      'Follow live season rankings, Dream Points totals, and championship races across your DreamFive league.',
   },
   '/matches': {
-    title: 'Match Center · DREAM5',
+    title: 'Match Center · DreamFive',
     description:
       'Inspect 24/7 simulated basketball box scores, round schedules, and Dream Points breakdowns.',
   },
   '/players': {
-    title: 'Player Explorer · DREAM5',
+    title: 'Player Explorer · DreamFive',
     description:
       'Scout 540 league players with ratings, salaries, availability status, and full performance history.',
   },
   '/teams': {
-    title: 'Franchises & Squads · DREAM5',
+    title: 'Franchises & Squads · DreamFive',
     description:
       'Compare 18-player rosters, budgets, and team ratings across every franchise in your league.',
   },
   '/auth': {
-    title: 'Sign in · DREAM5',
+    title: 'Sign in · DreamFive',
     description:
-      'Sign in or create your DREAM5 manager account to compete in 24/7 private fantasy basketball leagues.',
+      'Sign in or create your DreamFive manager account to compete in 24/7 private fantasy basketball leagues.',
   },
 };
 

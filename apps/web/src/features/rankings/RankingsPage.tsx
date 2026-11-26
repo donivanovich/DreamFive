@@ -8,14 +8,14 @@ import { ErrorFallbackCard, LoadingSkeletonCard } from '@/components/shared/Load
 import { PageHeader } from '@/components/shared/PageHeader';
 import { Badge } from '@/components/ui/Badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
-import { useDream5State } from '@/hooks/use-dream5-state';
+import { useDreamFiveState } from '@/hooks/use-dreamfive-state';
 import { useI18n } from '@/hooks/use-i18n';
 import { formatStatNumber } from '@/lib/formatters';
-import { rankingsApi } from '@/services/dream5-api';
+import { rankingsApi } from '@/services/dreamfive-api';
 import { mapStandingDtoToUi } from '@/services/mappers';
 
 export function RankingsPage() {
-  const { activeLeague, preferences } = useDream5State();
+  const { activeLeague, preferences } = useDreamFiveState();
   const { getTriggerProps, inspectPlayer } = usePlayerContextMenu();
   const { t, f } = useI18n();
   const leagueId = activeLeague?.id ?? null;

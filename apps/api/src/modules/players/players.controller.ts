@@ -1,6 +1,6 @@
 import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import type { AvailabilityStatus, PlayerRole, Position } from '@dream5/shared';
+import type { AvailabilityStatus, PlayerRole, Position } from '@dreamfive/shared';
 
 import { LeagueMemberGuard } from '../../common/auth.guards.js';
 import { PlayersService } from './players.service.js';

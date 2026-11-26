@@ -45,7 +45,7 @@ export const apiEnvSchema = z
     AUTH_COOKIE_NAME: z
       .string()
       .regex(/^[a-zA-Z0-9_-]+$/)
-      .default('dream5_session'),
+      .default('dreamfive_session'),
     DEV_TOOLS_ENABLED: booleanFromString,
     RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1_000).max(3_600_000).default(60_000),
     RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().min(5).max(10_000).default(120),
@@ -60,7 +60,7 @@ export const apiEnvSchema = z
     QUEUE_PREFIX: z
       .string()
       .regex(/^[a-z0-9-]+$/)
-      .default('dream5'),
+      .default('dreamfive'),
     WEB_PUBLIC_URL: z.url({ protocol: /^https?$/ }).default('http://localhost:3000'),
     SMTP_HOST: z.string().trim().min(1).default('smtp.gmail.com'),
     SMTP_PORT: z.coerce.number().int().min(1).max(65_535).default(465),
@@ -70,7 +70,7 @@ export const apiEnvSchema = z
       .default(true),
     SMTP_USER: z.string().optional(),
     SMTP_PASS: z.string().optional(),
-    SMTP_FROM: z.string().trim().min(3).default('DREAM5 <no-reply@dream5.local>'),
+    SMTP_FROM: z.string().trim().min(3).default('DreamFive <no-reply@dreamfive.local>'),
     UPLOAD_DIR: z.string().trim().min(1).default('uploads'),
   })
   .superRefine((env, ctx) => {

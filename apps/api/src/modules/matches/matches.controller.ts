@@ -1,6 +1,6 @@
 import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import type { MatchDetailDto, MatchStatus } from '@dream5/shared';
+import type { MatchDetailDto, MatchStatus } from '@dreamfive/shared';
 
 import { LeagueMemberGuard } from '../../common/auth.guards.js';
 import { MatchesService } from './matches.service.js';

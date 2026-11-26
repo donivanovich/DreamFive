@@ -607,7 +607,9 @@ export function generateReplacementRookieBlueprint(params: {
  * iniciales respetando exactamente la distribución de roles (1/2/2/5/3/5)
  * y cobertura de las 5 posiciones por equipo.
  */
-export function generateInitialUniverseCatalog(seed = 'dream5-catalog-v1'): InitialUniverseCatalog {
+export function generateInitialUniverseCatalog(
+  seed = 'dreamfive-catalog-v1',
+): InitialUniverseCatalog {
   const rng = createSeededRng(seed);
   const usedNames = new Set<string>();
   const players: CatalogPlayerBlueprint[] = [];

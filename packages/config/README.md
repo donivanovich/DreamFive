@@ -1,4 +1,4 @@
-# `@dream5/config` — Configuración Compartida de Calidad y Compilación
+# `@dreamfive/config` — Configuración Compartida de Calidad y Compilación
 
 Paquete interno privado que centraliza las configuraciones base de **TypeScript**, **ESLint** y **Prettier** para todo el monorepo.
 

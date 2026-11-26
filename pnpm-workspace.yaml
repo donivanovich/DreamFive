@@ -1,5 +1,5 @@
 # ---------------------------------------------------------------------------
-# DREAM5 — configuración del workspace de pnpm
+# DreamFive — configuración del workspace de pnpm
 # ---------------------------------------------------------------------------
 # Toda la configuración de pnpm (excepto credenciales de registro) vive aquí.
 # Las versiones compartidas entre varios paquetes se centralizan en `catalog`

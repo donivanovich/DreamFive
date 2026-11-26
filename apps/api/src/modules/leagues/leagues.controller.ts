@@ -5,7 +5,7 @@ import {
   type CreateLeagueInput,
   createLeagueSchema,
   type LeagueSummaryDto,
-} from '@dream5/shared';
+} from '@dreamfive/shared';
 
 import { CurrentUser, LeagueMemberGuard, SessionAuthGuard } from '../../common/auth.guards.js';
 import { ZodValidationPipe } from '../../common/zod-validation.pipe.js';

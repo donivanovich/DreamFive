@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import type { PlayerInstanceDto } from '@dream5/shared';
+import type { PlayerInstanceDto } from '@dreamfive/shared';
 
 import { toPlayerInstanceDto } from '../../common/dto-mappers.js';
 import { PrismaService } from '../../database/prisma.service.js';

@@ -6,7 +6,7 @@ import {
   type Position,
   PROVISIONAL_GAME_CONFIG,
   type SeasonResetConfig,
-} from '@dream5/shared';
+} from '@dreamfive/shared';
 import {
   calculatePlayerDreamPointsBreakdown,
   createSeededRng,
@@ -18,7 +18,7 @@ import {
   recalculateMarketPrices,
   resolveZonedDateIso,
   simulateBasketballMatch,
-} from '@dream5/simulation-engine';
+} from '@dreamfive/simulation-engine';
 
 import { Prisma, type PrismaClient } from '../generated/prisma/client.js';
 import {

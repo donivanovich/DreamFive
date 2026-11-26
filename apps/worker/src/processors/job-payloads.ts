@@ -1,4 +1,4 @@
-import type { SeasonResetConfig } from '@dream5/shared';
+import type { SeasonResetConfig } from '@dreamfive/shared';
 
 export interface SimulateRoundJobData {
   readonly leagueId: string;

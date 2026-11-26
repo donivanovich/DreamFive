@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import type { Prisma } from '@dream5/database';
-import type { MatchDetailDto, MatchFixtureDto, MatchStatus } from '@dream5/shared';
+import type { Prisma } from '@dreamfive/database';
+import type { MatchDetailDto, MatchFixtureDto, MatchStatus } from '@dreamfive/shared';
 
 import { PrismaService } from '../../database/prisma.service.js';
 

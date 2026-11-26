@@ -1,6 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
-  "display": "DREAM5 — base estricta",
+  "display": "DreamFive — base estricta",
   "compilerOptions": {
     "target": "ES2024",
     "lib": ["ES2024"],

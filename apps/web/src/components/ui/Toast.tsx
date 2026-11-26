@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 
 const DEFAULT_TOAST_DURATION_MS = 5000;
 
-export function Dream5ToastProvider({ children }: { readonly children: ReactNode }) {
+export function DreamFiveToastProvider({ children }: { readonly children: ReactNode }) {
   const [toasts, setToasts] = useState<readonly ToastItem[]>([]);
   const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 

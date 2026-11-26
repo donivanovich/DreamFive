@@ -1,6 +1,6 @@
 # Estrategia de pruebas y verificación
 
-DREAM5 cuenta con 4 niveles de verificación automatizada para garantizar calidad estática y comportamiento real en ejecución.
+DreamFive cuenta con 4 niveles de verificación automatizada para garantizar calidad estática y comportamiento real en ejecución.
 
 ## 1. Validación estática y pruebas de todo el monorepo
 
@@ -12,7 +12,7 @@ Ejecuta secuencialmente:
 
 1. `pnpm run format:check` (Prettier en todo el repositorio).
 2. `pnpm run lint` (ESLint estricto con `--max-warnings=0`).
-3. `pnpm run typecheck` (compila paquetes `@dream5/*` y verifica TypeScript en modo estricto en los 7 proyectos).
+3. `pnpm run typecheck` (compila paquetes `@dreamfive/*` y verifica TypeScript en modo estricto en los 7 proyectos).
 4. `pnpm run test` (todas las suites Vitest del monorepo).
 
 ## 2. Pruebas unitarias del motor deportivo y utilidades
@@ -42,5 +42,5 @@ PLAYWRIGHT_BASE_URL=http://localhost:3100 pnpm run test:e2e
 
 Incluye:
 
-- [`apps/web/e2e/smoke.spec.ts`](../../apps/web/e2e/smoke.spec.ts): idioma por defecto inglés, restricción de `Simulation` a `ivan.k@dream5.local`, recorrido completo por todas las secciones (incluido `Mail`) y menú móvil (`390px`) con `0` errores de consola.
-- [`apps/web/e2e/full-stack.spec.ts`](../../apps/web/e2e/full-stack.spec.ts): creación de liga privada, alineación con persistencia tras `page.reload()`, cambio de aspecto e idioma, bloqueo directo de `/change-password`, bandeja `Mail`, selector de franquicia/jugador con desglose completo de Dream Points, simulación administrativa con `ivan.k@dream5.local` y bloqueos por partido en traspasos.
+- [`apps/web/e2e/smoke.spec.ts`](../../apps/web/e2e/smoke.spec.ts): idioma por defecto inglés, restricción de `Simulation` a `ivan.k@dreamfive.local`, recorrido completo por todas las secciones (incluido `Mail`) y menú móvil (`390px`) con `0` errores de consola.
+- [`apps/web/e2e/full-stack.spec.ts`](../../apps/web/e2e/full-stack.spec.ts): creación de liga privada, alineación con persistencia tras `page.reload()`, cambio de aspecto e idioma, bloqueo directo de `/change-password`, bandeja `Mail`, selector de franquicia/jugador con desglose completo de Dream Points, simulación administrativa con `ivan.k@dreamfive.local` y bloqueos por partido en traspasos.

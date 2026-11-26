@@ -1,4 +1,4 @@
-# `@dream5/shared` — Contratos y Constantes Compartidas
+# `@dreamfive/shared` — Contratos y Constantes Compartidas
 
 Paquete ligero con artefactos compartidos entre `apps/web`, `apps/api` y `apps/worker`.
 

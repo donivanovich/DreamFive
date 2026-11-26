@@ -1,4 +1,4 @@
-import type { LeagueSummaryDto } from '@dream5/shared';
+import type { LeagueSummaryDto } from '@dreamfive/shared';
 import { Check, Crown, Users } from 'lucide-react';
 
 import { TeamLogo } from '@/components/players/PlayerBadges';

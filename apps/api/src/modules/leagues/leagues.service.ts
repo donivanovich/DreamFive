@@ -1,11 +1,11 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { instantiateLeague, Prisma } from '@dream5/database';
+import { instantiateLeague, Prisma } from '@dreamfive/database';
 import type {
   CreateLeagueInput,
   LeagueRole,
   LeagueSummaryDto,
   SeasonSummaryDto,
-} from '@dream5/shared';
+} from '@dreamfive/shared';
 
 import { PrismaService } from '../../database/prisma.service.js';
 

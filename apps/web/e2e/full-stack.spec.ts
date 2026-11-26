@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-test.describe('DREAM5 Full Stack E2E', () => {
+test.describe('DreamFive Full Stack E2E', () => {
   test('guards /change-password, persists league/lineup/settings/transfers/mail without Mailpit, and verifies stats modal stability + CPU avatar suppression + simulation', async ({
     page,
   }) => {
@@ -25,9 +25,9 @@ test.describe('DREAM5 Full Stack E2E', () => {
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
 
-    await page.locator('#auth-email').fill('maria.s@dream5.local');
+    await page.locator('#auth-email').fill('maria.s@dreamfive.local');
     await page.locator('#auth-password').fill('WrongPass123!');
-    await page.getByRole('button', { name: 'Sign in to DREAM5' }).click();
+    await page.getByRole('button', { name: 'Sign in to DreamFive' }).click();
     const authErrToast = page.getByTestId('toast-notification').last();
     await expect(authErrToast).toBeVisible({ timeout: 10_000 });
     await expect(authErrToast).toHaveAttribute('data-toast-tone', 'error');
@@ -38,8 +38,8 @@ test.describe('DREAM5 Full Stack E2E', () => {
       expect(authToastBox.y + authToastBox.height / 2).toBeGreaterThan(450);
     }
 
-    await page.locator('#auth-password').fill('Dream5Demo!2026');
-    await page.getByRole('button', { name: 'Sign in to DREAM5' }).click();
+    await page.locator('#auth-password').fill('DreamFiveDemo!2026');
+    await page.getByRole('button', { name: 'Sign in to DreamFive' }).click();
 
     // Wait for authenticated shell regardless of previously saved user locale
     await expect(page.locator('a[href="/leagues"]').first()).toBeVisible({ timeout: 20_000 });
@@ -264,16 +264,16 @@ test.describe('DREAM5 Full Stack E2E', () => {
       timeout: 10_000,
     });
 
-    // 9. Sign out and sign in as admin ivan.k@dream5.local to simulate round & inspect UI improvements
+    // 9. Sign out and sign in as admin ivan.k@dreamfive.local to simulate round & inspect UI improvements
     const [logoutResponse] = await Promise.all([
       page.waitForResponse((res) => res.url().includes('/auth/logout')),
       page.getByRole('button', { name: 'Sign out' }).click(),
     ]);
     expect(logoutResponse.status()).toBeLessThan(400);
     await expect(page.locator('#auth-email')).toBeVisible({ timeout: 15_000 });
-    await page.locator('#auth-email').fill('ivan.k@dream5.local');
-    await page.locator('#auth-password').fill('Dream5Demo!2026');
-    await page.getByRole('button', { name: 'Sign in to DREAM5' }).click();
+    await page.locator('#auth-email').fill('ivan.k@dreamfive.local');
+    await page.locator('#auth-password').fill('DreamFiveDemo!2026');
+    await page.getByRole('button', { name: 'Sign in to DreamFive' }).click();
 
     const simLink = page.locator('a[href="/simulation"]').first();
     await expect(simLink).toBeVisible({ timeout: 20_000 });
@@ -423,15 +423,17 @@ test.describe('DREAM5 Full Stack E2E', () => {
         scrollWidth: document.documentElement.scrollWidth,
         clientWidth: document.documentElement.clientWidth,
         innerWidth: window.innerWidth,
-        tableContainers: Array.from(document.querySelectorAll('.dream5-table-scroll')).map((el) => {
-          const rect = el.getBoundingClientRect();
-          const style = window.getComputedStyle(el);
-          return {
-            overflowX: style.overflowX,
-            right: rect.right,
-            width: rect.width,
-          };
-        }),
+        tableContainers: Array.from(document.querySelectorAll('.dreamfive-table-scroll')).map(
+          (el) => {
+            const rect = el.getBoundingClientRect();
+            const style = window.getComputedStyle(el);
+            return {
+              overflowX: style.overflowX,
+              right: rect.right,
+              width: rect.width,
+            };
+          },
+        ),
       }));
       expect(
         overflowCheck.scrollWidth,

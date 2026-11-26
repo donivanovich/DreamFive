@@ -1,4 +1,4 @@
-import { SOCKET_EVENTS } from '@dream5/shared';
+import { SOCKET_EVENTS } from '@dreamfive/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';

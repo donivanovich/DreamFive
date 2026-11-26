@@ -11,7 +11,7 @@ Se ejecutaron `pnpm audit` (completo) y `pnpm audit --prod` sobre el `pnpm-lock.
 | Workspace completo (`pnpm audit`, 618 paquetes)                |    0     |   0   |     1     |   0   |      0       |
 | Dependencias de producción (`pnpm audit --prod`, 420 paquetes) |    0     |   0   |     1     |   0   |      0       |
 
-> **Nota sobre `pnpm audit --prod`:** el único aviso presente aparece también en `--prod` porque `@dream5/config` declara las herramientas de ESLint bajo `dependencies` para poder exportar su configuración compartida. Sin embargo, `@dream5/config` solo se referencia en `devDependencies` del paquete raíz y de las aplicaciones, por lo que **no se incluye** en las imágenes Docker de producción generadas con `pnpm deploy --prod`.
+> **Nota sobre `pnpm audit --prod`:** el único aviso presente aparece también en `--prod` porque `@dreamfive/config` declara las herramientas de ESLint bajo `dependencies` para poder exportar su configuración compartida. Sin embargo, `@dreamfive/config` solo se referencia en `devDependencies` del paquete raíz y de las aplicaciones, por lo que **no se incluye** en las imágenes Docker de producción generadas con `pnpm deploy --prod`.
 
 ## Vulnerabilidad detectada
 

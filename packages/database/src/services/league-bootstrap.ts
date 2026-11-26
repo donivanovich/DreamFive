@@ -6,7 +6,7 @@ import {
   type MarketMode,
   type Position,
   PROVISIONAL_GAME_CONFIG,
-} from '@dream5/shared';
+} from '@dreamfive/shared';
 import {
   generateDoubleRoundRobinFixtures,
   generateInitialUniverseCatalog,
@@ -14,7 +14,7 @@ import {
   INITIAL_TEAMS,
   LEGACY_TEAM_CODES_IN_SLOT_ORDER,
   resolveZonedDateIso,
-} from '@dream5/simulation-engine';
+} from '@dreamfive/simulation-engine';
 
 import { Prisma, type PrismaClient } from '../generated/prisma/client.js';
 
@@ -146,7 +146,7 @@ export async function ensureCatalogSeeded(prisma: PrismaClient): Promise<void> {
     return;
   }
 
-  const catalog = generateInitialUniverseCatalog('dream5-catalog-v1');
+  const catalog = generateInitialUniverseCatalog('dreamfive-catalog-v1');
 
   await prisma.$transaction(async (tx) => {
     const teamIdByCode = new Map<string, string>();

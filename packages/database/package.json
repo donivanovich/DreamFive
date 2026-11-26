@@ -1,8 +1,8 @@
 {
-  "name": "@dream5/database",
+  "name": "@dreamfive/database",
   "version": "0.1.0",
   "private": true,
-  "description": "Esquema Prisma, migraciones y cliente de base de datos PostgreSQL de DREAM5",
+  "description": "Esquema Prisma, migraciones y cliente de base de datos PostgreSQL de DreamFive",
   "type": "module",
   "exports": {
     ".": {
@@ -29,13 +29,13 @@
     "db:seed": "node dist/seed.js"
   },
   "dependencies": {
-    "@dream5/shared": "workspace:*",
-    "@dream5/simulation-engine": "workspace:*",
+    "@dreamfive/shared": "workspace:*",
+    "@dreamfive/simulation-engine": "workspace:*",
     "@prisma/adapter-pg": "7.10.1",
     "@prisma/client": "7.10.1"
   },
   "devDependencies": {
-    "@dream5/config": "workspace:*",
+    "@dreamfive/config": "workspace:*",
     "@types/node": "catalog:",
     "prisma": "7.10.1",
     "typescript": "catalog:",

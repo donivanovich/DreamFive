@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-import type { UserAccountRole } from '@dream5/shared';
+import type { UserAccountRole } from '@dreamfive/shared';
 
 import {
   createPrismaClient,
@@ -30,26 +30,26 @@ interface DemoUserSeed {
 
 const DEMO_USERS: readonly DemoUserSeed[] = [
   {
-    email: 'ivan.k@dream5.local',
-    password: 'Dream5Demo!2026',
+    email: 'ivan.k@dreamfive.local',
+    password: 'DreamFiveDemo!2026',
     role: 'ADMIN',
     username: 'Iván Kovac',
     tag: '#D5-4821',
     initials: 'IK',
   },
   {
-    email: 'maria.s@dream5.local',
-    password: 'Dream5Demo!2026',
+    email: 'maria.s@dreamfive.local',
+    password: 'DreamFiveDemo!2026',
     role: 'USER',
     username: 'María Soler',
     tag: '#D5-7310',
     initials: 'MS',
   },
   {
-    email: 'admin@dream5.local',
-    password: 'Dream5Admin!2026',
+    email: 'admin@dreamfive.local',
+    password: 'DreamFiveAdmin!2026',
     role: 'USER',
-    username: 'Admin DREAM5',
+    username: 'Admin DreamFive',
     tag: '#D5-0001',
     initials: 'AD',
   },
@@ -116,8 +116,8 @@ async function runSeed(): Promise<void> {
       userIdByEmail.set(demo.email, created.id);
     }
 
-    const ivanId = userIdByEmail.get('ivan.k@dream5.local');
-    const mariaId = userIdByEmail.get('maria.s@dream5.local');
+    const ivanId = userIdByEmail.get('ivan.k@dreamfive.local');
+    const mariaId = userIdByEmail.get('maria.s@dreamfive.local');
     if (!ivanId || !mariaId) {
       throw new Error('No se pudieron resolver los usuarios demo principales.');
     }
@@ -135,7 +135,7 @@ async function runSeed(): Promise<void> {
         name: 'Liga Mediterránea',
         presidentUserId: ivanId,
         marketMode: 'LEAGUE_ISOLATED',
-        simulationSeed: 'dream5-demo-liga-mediterranea',
+        simulationSeed: 'dreamfive-demo-liga-mediterranea',
       });
 
       await prisma.$transaction(async (tx) =>

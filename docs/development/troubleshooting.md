@@ -17,8 +17,8 @@
 
 ## 4. No aparece el apartado `Simulation` o responde `403 Forbidden`
 
-- **Causa:** toda acción manual de simulación (`/simulation`, `/dev/leagues/*`, `POST /seasons/advance`) está restringida estrictamente al administrador `ivan.k@dream5.local`.
-- **Solución:** inicia sesión con `ivan.k@dream5.local` si necesitas ejecutar rondas manualmente; para el resto de cuentas el worker 24/7 avanza automáticamente el calendario.
+- **Causa:** toda acción manual de simulación (`/simulation`, `/dev/leagues/*`, `POST /seasons/advance`) está restringida estrictamente al administrador `ivan.k@dreamfive.local`.
+- **Solución:** inicia sesión con `ivan.k@dreamfive.local` si necesitas ejecutar rondas manualmente; para el resto de cuentas el worker 24/7 avanza automáticamente el calendario.
 
 ## 5. Colisión de puertos locales (`3000` o `3001` ocupados)
 

@@ -1,5 +1,5 @@
 /**
- * Punto de entrada público de @dream5/shared.
+ * Punto de entrada público de @dreamfive/shared.
  *
  * Solo se exporta lo que deba compartirse entre aplicaciones. Las
  * definiciones del dominio (posiciones, roles, etc.) se añadirán durante la

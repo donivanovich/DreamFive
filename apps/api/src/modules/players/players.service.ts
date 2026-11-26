@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import type { Prisma } from '@dream5/database';
+import type { Prisma } from '@dreamfive/database';
 import {
   type AvailabilityStatus,
   parseLeagueScoringWeights,
@@ -7,8 +7,8 @@ import {
   type PlayerInstanceDto,
   type PlayerRole,
   type Position,
-} from '@dream5/shared';
-import { calculatePlayerDreamPointsBreakdown } from '@dream5/simulation-engine';
+} from '@dreamfive/shared';
+import { calculatePlayerDreamPointsBreakdown } from '@dreamfive/simulation-engine';
 
 import { toPlayerInstanceDto } from '../../common/dto-mappers.js';
 import { PrismaService } from '../../database/prisma.service.js';
