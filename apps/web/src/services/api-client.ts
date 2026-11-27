@@ -29,14 +29,60 @@ export function resolveLoopbackApiUrl(configuredBaseUrl: string, currentHostname
   return normalized;
 }
 
+export interface SocketConnectionConfig {
+  readonly url: string | undefined;
+  readonly path: string;
+}
+
+/**
+ * Resuelve la configuración de conexión de Socket.IO a partir de `VITE_API_URL`.
+ *
+ * - Con rutas relativas (p. ej. `/api` detrás del gateway Nginx), conecta al mismo
+ *   origen sobre el namespace raíz (`/`) usando `path: '/socket.io'` para evitar que
+ *   Socket.IO interprete `/api` como un namespace inexistente.
+ * - Con URLs absolutas (desarrollo local directo sin gateway o pruebas E2E), conecta
+ *   al origen explícito manteniendo la alineación loopback `localhost` <-> `127.0.0.1`.
+ */
+export function resolveSocketConnectionConfig(
+  configuredBaseUrl: string,
+  currentHostname?: string,
+): SocketConnectionConfig {
+  const resolved = resolveLoopbackApiUrl(configuredBaseUrl, currentHostname);
+  if (resolved.length === 0 || resolved.startsWith('/')) {
+    return {
+      url: undefined,
+      path: '/socket.io',
+    };
+  }
+
+  try {
+    const parsed = new URL(resolved);
+    return {
+      url: parsed.origin,
+      path: '/socket.io',
+    };
+  } catch {
+    return {
+      url: undefined,
+      path: '/socket.io',
+    };
+  }
+}
+
 export function getApiBaseUrl(): string {
   const configured = import.meta.env.VITE_API_URL;
   const fallback =
-    configured && configured.trim().length > 0
-      ? configured.trim().replace(/\/+$/, '')
-      : 'http://localhost:3101';
+    configured && configured.trim().length > 0 ? configured.trim().replace(/\/+$/, '') : '/api';
   const currentHostname = typeof window !== 'undefined' ? window.location.hostname : undefined;
   return resolveLoopbackApiUrl(fallback, currentHostname);
+}
+
+export function getSocketConnectionConfig(): SocketConnectionConfig {
+  const configured = import.meta.env.VITE_API_URL;
+  const fallback =
+    configured && configured.trim().length > 0 ? configured.trim().replace(/\/+$/, '') : '/api';
+  const currentHostname = typeof window !== 'undefined' ? window.location.hostname : undefined;
+  return resolveSocketConnectionConfig(fallback, currentHostname);
 }
 
 export function resolveApiAssetUrl(assetPath: string | null | undefined): string | null {

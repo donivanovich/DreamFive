@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 
-import { getApiBaseUrl, getStoredAccessToken } from './api-client';
+import { getSocketConnectionConfig, getStoredAccessToken } from './api-client';
 
 export function useLeagueRealtime(
   userId: string | null | undefined,
@@ -28,14 +28,19 @@ export function useLeagueRealtime(
       void queryClient.invalidateQueries({ queryKey: ['dev', 'league', leagueId] });
     };
 
-    const socket: Socket = io(getApiBaseUrl(), {
+    const socketConfig = getSocketConnectionConfig();
+    const socketOptions = {
+      path: socketConfig.path,
       withCredentials: true,
-      transports: ['websocket', 'polling'],
-      auth: (cb) => {
+      transports: ['websocket', 'polling'] as ('websocket' | 'polling')[],
+      auth: (cb: (data: Record<string, string>) => void) => {
         const token = getStoredAccessToken();
         cb(token ? { token } : {});
       },
-    });
+    };
+    const socket: Socket = socketConfig.url
+      ? io(socketConfig.url, socketOptions)
+      : io(socketOptions);
 
     socket.on('connect', () => {
       socket.emit(
