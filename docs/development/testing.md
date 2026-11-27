@@ -34,10 +34,10 @@ Ejecuta secuencialmente:
 
 ## 4. Pruebas End-to-End en navegador real (Playwright)
 
-Con todo el stack dockerizado (`docker compose up -d --build`) levantado en `http://localhost:3100`:
+Con todo el stack dockerizado (`pnpm docker:up`) levantado en `http://localhost:3000`:
 
 ```bash
-PLAYWRIGHT_BASE_URL=http://localhost:3100 pnpm run test:e2e
+PLAYWRIGHT_BASE_URL=http://localhost:3000 pnpm run test:e2e
 ```
 
 Incluye:

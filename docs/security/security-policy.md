@@ -33,10 +33,11 @@ Este documento recoge las medidas de seguridad aplicadas en la inicialización d
 
 ### 4. Endurecimiento de contenedores (Docker)
 
-- **Versiones fijadas:** se evitan etiquetas `latest` (`node:24.22.3-alpine3.24`, `postgres:18.6-alpine3.24`, `redis:8.8.4-alpine3.23`).
-- **Usuario sin privilegios:** los contenedores de `api`, `worker` y `web` se ejecutan como `node` (UID 1000).
-- **Sistema de archivos de solo lectura (`read_only: true`)**, capacidades Linux eliminadas (`cap_drop: [ALL]`) y `no-new-privileges: true`.
-- **Aislamiento de red:** `postgres`, `redis` y `worker` operan en la red `backend` marcada como `internal: true`. En `docker-compose.yml` no se publican puertos de PostgreSQL ni Redis; en desarrollo (`docker-compose.dev.yml`) se enlazan exclusivamente a `127.0.0.1`.
+- **Versiones fijadas:** se evitan etiquetas `latest` (`node:24.22.3-alpine3.24`, `nginx:1.28.3-alpine`, `postgres:18.6-alpine3.24`, `redis:8.8.4-alpine3.23`).
+- **Superficie mínima de puertos (gateway único):** únicamente el servicio `gateway` (Nginx) publica `127.0.0.1:3000 -> 80` (publicado hacia Internet exclusivamente mediante Cloudflare Tunnel en `dreamfive.donivanovich.dev`). `web`, `api`, `worker`, `postgres`, `redis`, `migrate` y `seed` no publican puertos en el host.
+- **Usuario sin privilegios y solo lectura:** los contenedores de `api`, `worker` y `web` se ejecutan como `node` (UID 1000) con `read_only: true`, `cap_drop: [ALL]` y `no-new-privileges: true`; `gateway` opera en solo lectura con `tmpfs` dedicados y capacidades mínimas (`NET_BIND_SERVICE`, `CHOWN`, `SETGID`, `SETUID`).
+- **Proxy de confianza y cookies seguras:** `API_TRUST_PROXY=true` y `X-Forwarded-Proto` preservado desde Cloudflare Tunnel garantizan detección correcta de HTTPS y cookies `HttpOnly; SameSite=Lax; Secure` en producción.
+- **Aislamiento de red:** `postgres`, `redis` y `worker` operan en la red `backend` marcada como `internal: true`; `gateway`, `web` y `api` comparten la red interna `edge`. En desarrollo con apps en el host (`docker-compose.dev.yml`), PostgreSQL y Redis se enlazan exclusivamente a `127.0.0.1`.
 - **Redis protegido:** autenticación obligatoria por contraseña, `protected-mode yes`, persistencia AOF y política `maxmemory-policy noeviction` requerida por BullMQ.
 
 ## Requisitos de seguridad para fases posteriores

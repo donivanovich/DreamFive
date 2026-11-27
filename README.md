@@ -38,11 +38,30 @@
 
 ---
 
-## Arranque completo con Docker Compose (recomendado)
+## Arquitectura de producción (Raspberry Pi 5 + Cloudflare Tunnel)
+
+En producción (`/opt/docker/apps/DreamFive`, Raspberry Pi 5 16 GB · Raspberry Pi OS Lite 64 bits `linux/arm64`), **`gateway` (Nginx)** es el único servicio con puerto publicado en el host (`127.0.0.1:3000 -> 80`), publicado a Internet mediante **Cloudflare Tunnel**:
+
+```text
+https://dreamfive.donivanovich.dev  ──(Cloudflare Tunnel)──►  127.0.0.1:3000 [gateway · Nginx]
+                                                                 ├── /api/*         ──► api:3001/* (REST)
+                                                                 ├── /socket.io/    ──► api:3001/socket.io/ (WebSocket)
+                                                                 ├── /uploads/*     ──► api:3001/uploads/*
+                                                                 ├── /gateway-health ──► 200 ok
+                                                                 └── /*             ──► web:3000/* (TanStack Start SSR)
+```
+
+- **Puertos internos únicamente:** `web`, `api`, `worker`, `postgres`, `redis`, `migrate` y `seed` no publican puertos en el host; se comunican únicamente a través de las redes Docker `edge` y `backend` (`internal: true`).
+- **Rutas relativas en frontend:** el frontend usa `VITE_API_URL=/api` y Socket.IO conecta al mismo origen (`/socket.io`), sin depender de un hostname ni puerto separado para la API.
+- **Guía completa de operación** (instalación desde cero en Raspberry Pi 5, Cloudflare Tunnel, actualizaciones, migraciones, healthchecks, logs y backups/restauración): [docs/development/local-setup.md](./docs/development/local-setup.md) y [docs/architecture/overview.md](./docs/architecture/overview.md).
+
+---
+
+## Arranque completo con Docker Compose (local)
 
 ### 1. Requisitos previos
 
-- Docker + Docker Compose
+- Docker + Docker Compose v2
 - _(Solo para desarrollo sin Docker o ejecutar tests en local)_ Node.js `>=24.12.0 <25` (`.nvmrc`: `24.22.3`) y pnpm `12.18.0`
 
 ### 2. Levantar todo el sistema en un único comando
@@ -53,19 +72,20 @@ pnpm docker:up
 # o directamente: docker compose up -d --build
 ```
 
-Este comando construye y levanta automáticamente toda la arquitectura sin necesidad de abrir terminales manuales para API, Worker ni Web:
+Este comando construye y levanta automáticamente toda la arquitectura con el mismo gateway Nginx que en producción:
 
-- `postgres` + `redis`
+- `postgres` + `redis` (red interna `backend`, persistentes)
 - `migrate` (aplica migraciones SQL de Prisma automáticamente al arrancar)
-- `seed` (carga catálogo inicial idempotente, usuarios demo y _Liga Mediterránea_)
-- `api` · `worker` · `web`
+- `seed` (carga catálogo inicial idempotente, cuenta demo y _Liga Mediterránea_)
+- `api` · `worker` · `web` (solo accesibles internamente por red Docker)
+- `gateway` (Nginx, único puerto publicado en el host: `127.0.0.1:3000`)
 
-Accesos locales (configurables en `.env`):
+Acceso local (configurable en `.env`):
 
-- **Frontend web:** `http://localhost:3100` (rango de respaldo `WEB_PORT_RANGE=3100-3199`)
-- **API Fastify:** `http://localhost:3101` (rango de respaldo `API_PORT_RANGE=3101-3199`)
+- **Aplicación + API (`/api`) + Socket.IO (`/socket.io`):** `http://localhost:3000` (rango de respaldo `GATEWAY_PORT_RANGE=3000-3099`)
+- **Healthcheck gateway / readiness API:** `http://localhost:3000/gateway-health` · `http://localhost:3000/api/health/ready`
 
-> Si los puertos definidos (`WEB_PORT`, `API_PORT`, `POSTGRES_PORT` o `REDIS_PORT`) ya están ocupados en el host, Docker Compose y `pnpm docker:up` seleccionan automáticamente un puerto libre dentro de su rango (`*_PORT_RANGE`) y sincronizan `VITE_API_URL`, `WEB_PUBLIC_URL` y `API_CORS_ORIGINS`. Puedes previsualizar los puertos asignados con `pnpm docker:ports`.
+> Si el puerto `3000` (o `POSTGRES_PORT` / `REDIS_PORT` en `pnpm docker:infra`) ya está ocupado en el host, `pnpm docker:up` selecciona automáticamente un puerto libre dentro de su rango (`*_PORT_RANGE`) y sincroniza `WEB_PUBLIC_URL`, `VITE_PUBLIC_URL` y `API_CORS_ORIGINS` manteniendo `VITE_API_URL=/api`. Puedes previsualizar el puerto asignado con `pnpm docker:ports`.
 
 ### 3. Cuenta de demostración (cargada por `seed`)
 
@@ -96,11 +116,11 @@ El repositorio incluye un pipeline automatizado de integración continua (**CI**
 
 ### Workflows disponibles
 
-| Workflow                   | Archivo                          | Disparadores                                                                        | Propósito principal                                                                                                            |
-| -------------------------- | -------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| **CI**                     | `.github/workflows/ci.yml`       | `push` (`main`, `develop`), `pull_request` (`main`, `develop`), `workflow_dispatch` | Validación estática, build, pruebas unitarias, integración real (PostgreSQL 18 + Redis 8), Docker, auditoría y E2E Playwright. |
-| **CD**                     | `.github/workflows/cd.yml`       | `push` (`main` y etiquetas `v*.*.*`), `workflow_dispatch`                           | Publicación de imágenes Docker en GitHub Container Registry (**GHCR**) y despliegue SSH opcional con rollback automático.      |
-| **Security & Maintenance** | `.github/workflows/security.yml` | `schedule` (lunes `06:00 UTC`), `workflow_dispatch`                                 | Auditoría semanal de dependencias, esquema Prisma y sintaxis Docker Compose.                                                   |
+| Workflow                   | Archivo                          | Disparadores                                                                        | Propósito principal                                                                                                                          |
+| -------------------------- | -------------------------------- | ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| **CI**                     | `.github/workflows/ci.yml`       | `push` (`main`, `develop`), `pull_request` (`main`, `develop`), `workflow_dispatch` | Validación estática, build, pruebas unitarias, integración real (PostgreSQL 18 + Redis 8), Docker, auditoría y E2E Playwright.               |
+| **CD**                     | `.github/workflows/cd.yml`       | `workflow_run` (solo tras `CI` en verde sobre `main`), `workflow_dispatch`          | Publicación nativa `linux/arm64` en GitHub Container Registry (**GHCR**) y despliegue automático por SSH en **Raspberry Pi 5** con rollback. |
+| **Security & Maintenance** | `.github/workflows/security.yml` | `schedule` (lunes `06:00 UTC`), `workflow_dispatch`                                 | Auditoría semanal de dependencias, esquema Prisma y sintaxis Docker Compose (base, desarrollo y producción).                                 |
 
 ### Validaciones realizadas en CI (`ci.yml`)
 
@@ -108,33 +128,41 @@ El workflow cancela automáticamente ejecuciones obsoletas únicamente en Pull R
 
 1. **`static-and-unit`:** `pnpm run db:validate`, `pnpm run build:packages`, `pnpm run format:check` (Prettier), `pnpm exec eslint . --max-warnings=0`, `pnpm -r --sort run typecheck`, `pnpm run build` y pruebas unitarias (`@dreamfive/shared`, `@dreamfive/simulation-engine`, `@dreamfive/web`, `@dreamfive/worker` e `infrastructure/scripts/*.test.mjs`).
 2. **`integration` (en paralelo):** levanta servicios `postgres:18.6-alpine3.24` y `redis:8.8.4-alpine3.23`, aplica `pnpm run db:migrate:deploy` y ejecuta las pruebas de integración de `@dreamfive/database` y `@dreamfive/api`.
-3. **`docker-and-security` (en paralelo):** ejecuta `pnpm audit --prod --audit-level=high`, valida `docker-compose.yml` y `docker-compose.dev.yml` con `docker compose config --quiet` y comprueba la compilación de los 5 _targets_ de `infrastructure/docker/node.Dockerfile` (`api`, `worker`, `web`, `migrate`, `seed`) sin publicar (`push: false`).
+3. **`docker-and-security` (en paralelo):** ejecuta `pnpm audit --prod --audit-level=high`, valida `docker-compose.yml`, `docker-compose.dev.yml` y `docker-compose.prod.yml` con `docker compose config --quiet` y comprueba la compilación de los 5 _targets_ de `infrastructure/docker/node.Dockerfile` (`api`, `worker`, `web`, `migrate`, `seed`) sin publicar (`push: false`).
 4. **`e2e` (`needs: [static-and-unit, integration]`):** prepara la base de datos E2E (`db:migrate:deploy` + `db:seed`), levanta la API y verifica `/health/ready`, restaura la caché de Chromium para Playwright, ejecuta `pnpm run test:e2e` y adjunta `apps/web/playwright-report/` + `api-e2e.log` como artefacto (7 días) si falla.
 
-### Entrega y despliegue continuo (`cd.yml`)
+### Entrega y despliegue continuo en Raspberry Pi 5 (`cd.yml`)
 
-1. **`pre-release-check`:** verifica `pnpm audit --prod --audit-level=high` y `docker compose config --quiet`.
-2. **`publish-images` (`packages: write`):** construye y publica en **GHCR** las 5 imágenes (`ghcr.io/<owner>/dreamfive-{api,worker,web,migrate,seed}`) etiquetadas con `sha-<7-chars>`, nombre de rama (`main`), versión semántica (`vX.Y.Z` / `X.Y`) y `latest` solo como alias adicional en la rama por defecto.
-3. **`deploy-ssh` (opcional, entorno `production`):** solo se ejecuta si `vars.DEPLOY_ENABLED == 'true'`. Se conecta al VPS/servidor por SSH con `StrictHostKeyChecking=yes`, inicia sesión en GHCR mediante `--password-stdin`, descarga las imágenes del commit (`sha-<short>`), aplica migraciones (`docker compose run --rm migrate`), actualiza `api`, `worker` y `web` sin detener `postgres` ni `redis`, y comprueba los _healthchecks_. Si la verificación de salud falla, ejecuta **rollback automático** hacia la etiqueta registrada en `.deploy_current_tag`.
+El workflow `CD` se ejecuta **únicamente** cuando `CI` ha finalizado con éxito sobre la rama `main` (`workflow_run`, filtrando `conclusion == 'success'`, `head_branch == 'main'` y excluyendo Pull Requests) o mediante `workflow_dispatch`:
 
-> Para usar las imágenes de GHCR en un servidor propio, coloca en `DEPLOY_PATH` un `docker-compose.override.yml` que referencie `ghcr.io/<owner>/dreamfive-<servicio>:${IMAGE_TAG}` junto a tu `.env` de producción.
+1. **`publish-images` (`ubuntu-24.04-arm`, `packages: write`):** descarga el commit exacto verificado por CI (`head_sha`), valida `docker-compose.prod.yml` y construye de forma **nativa para `linux/arm64`** (sin emulación QEMU) los 5 _targets_ (`api`, `worker`, `web`, `migrate`, `seed`) con `VITE_API_URL=/api` y `VITE_PUBLIC_URL=https://dreamfive.donivanovich.dev` por defecto, publicándolos en **GHCR** (`ghcr.io/<owner>/dreamfive-<servicio>`) con etiqueta inmutable `sha-<7-chars>`, `main` y `latest`.
+2. **`deploy-raspberry-pi` (`needs: publish-images`, entorno `production`):** solo se ejecuta si `vars.DEPLOY_ENABLED == 'true'`.
+   - Transfiere atómicamente `docker-compose.prod.yml` e `infrastructure/nginx/default.conf` del commit verificado a `${DEPLOY_PATH}` (`/opt/docker/apps/DreamFive`), sin modificar nunca tu `.env` ni tus volúmenes persistentes.
+   - Autentica la Pi en GHCR mediante `--password-stdin` y descarga las imágenes nuevas (`docker compose -f docker-compose.prod.yml pull`) antes de tocar ningún contenedor activo.
+   - Asegura `postgres` y `redis` activos con `--no-recreate` (nunca los detiene ni reinicia innecesariamente).
+   - Ejecuta `docker compose -f docker-compose.prod.yml --profile ops run --rm migrate` antes de sustituir `api`, `worker`, `web` y `gateway` (`up -d --no-deps --remove-orphans`).
+   - Comprueba el estado `running` + `healthy` de **`gateway`, `api`, `worker` y `web`** mediante `docker inspect`, además de probar `/gateway-health`, `/api/health/ready` y `/` a través de `127.0.0.1:3000`.
+   - **Rollback automático:** si fallan las migraciones o la verificación de salud, restaura los respaldos `.bak` de Compose y Nginx, revierte `api`, `worker`, `web` y `gateway` a la última etiqueta verificada (`.deploy_current_tag`), comprueba que el rollback vuelva a estar `healthy` y marca el job como fallido.
+
+> **Preparación inicial única en la Raspberry Pi 5 (`/opt/docker/apps/DreamFive`):** crea el directorio, coloca allí tu `.env` de producción (ver [docs/development/local-setup.md](./docs/development/local-setup.md)) y configura Cloudflare Tunnel apuntando `dreamfive.donivanovich.dev` → `http://localhost:3000`. El `seed` solo se ejecuta manualmente bajo autorización expresa en una base de datos nueva.
 
 ### Secretos y variables de repositorio / entorno (`production`)
 
-| Tipo     | Nombre                               | Obligatorio para            | Descripción                                                                                        |
-| -------- | ------------------------------------ | --------------------------- | -------------------------------------------------------------------------------------------------- |
-| Variable | `VITE_API_URL`                       | `publish-images` (opcional) | URL pública de la API incrustada en el build de `web` (por defecto `http://localhost:3101`).       |
-| Variable | `VITE_PUBLIC_URL`                    | `publish-images` (opcional) | URL pública de la web para metadatos Open Graph / canonical (por defecto `http://localhost:3100`). |
-| Variable | `DEPLOY_ENABLED`                     | `deploy-ssh`                | Establecer en `true` para activar el despliegue SSH automático tras publicar en GHCR.              |
-| Variable | `DEPLOY_PORT`                        | `deploy-ssh` (opcional)     | Puerto SSH del servidor (por defecto `22`).                                                        |
-| Variable | `DEPLOY_API_HEALTH_URL`              | `deploy-ssh` (opcional)     | URL local del servidor para comprobar la API (por defecto `http://127.0.0.1:3101/health/ready`).   |
-| Variable | `DEPLOY_WEB_HEALTH_URL`              | `deploy-ssh` (opcional)     | URL local del servidor para comprobar la web (por defecto `http://127.0.0.1:3100/`).               |
-| Secret   | `DEPLOY_HOST`                        | `deploy-ssh`                | IP o dominio del servidor remoto.                                                                  |
-| Secret   | `DEPLOY_USER`                        | `deploy-ssh`                | Usuario SSH con permisos mínimos de despliegue (`docker`).                                         |
-| Secret   | `DEPLOY_PATH`                        | `deploy-ssh`                | Ruta absoluta en el servidor donde residen `docker-compose.yml` y `.env`.                          |
-| Secret   | `DEPLOY_SSH_KEY`                     | `deploy-ssh`                | Clave privada SSH dedicada exclusivamente al despliegue.                                           |
-| Secret   | `DEPLOY_SSH_KNOWN_HOSTS`             | `deploy-ssh`                | Salida de `ssh-keyscan -p <puerto> <host>` para validar la huella del servidor.                    |
-| Secret   | `GHCR_PULL_USER` / `GHCR_PULL_TOKEN` | `deploy-ssh` (opcional)     | Credenciales de solo lectura (`read:packages`) si los paquetes GHCR son privados.                  |
+| Tipo     | Nombre                               | Obligatorio para                 | Descripción                                                                                                      |
+| -------- | ------------------------------------ | -------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Variable | `VITE_API_URL`                       | `publish-images` (opcional)      | Ruta de la API incrustada en el build de `web` (por defecto `/api`, ruta relativa tras el gateway Nginx).        |
+| Variable | `VITE_PUBLIC_URL`                    | `publish-images` (opcional)      | URL pública para metadatos Open Graph / canonical (por defecto `https://dreamfive.donivanovich.dev`).            |
+| Variable | `DEPLOY_ENABLED`                     | `deploy-raspberry-pi`            | Establecer en `true` para activar el despliegue SSH automático en la Raspberry Pi 5 tras publicar.               |
+| Variable | `DEPLOY_PORT`                        | `deploy-raspberry-pi` (opcional) | Puerto SSH de la Raspberry Pi 5 (por defecto `22`).                                                              |
+| Variable | `DEPLOY_GATEWAY_HEALTH_URL`          | `deploy-raspberry-pi` (opcional) | URL local del healthcheck del gateway (por defecto `http://127.0.0.1:3000/gateway-health`).                      |
+| Variable | `DEPLOY_API_HEALTH_URL`              | `deploy-raspberry-pi` (opcional) | URL local para comprobar readiness de la API vía gateway (por defecto `http://127.0.0.1:3000/api/health/ready`). |
+| Variable | `DEPLOY_WEB_HEALTH_URL`              | `deploy-raspberry-pi` (opcional) | URL local para comprobar el frontend vía gateway (por defecto `http://127.0.0.1:3000/`).                         |
+| Secret   | `DEPLOY_HOST`                        | `deploy-raspberry-pi`            | IP pública/Tailscale o dominio de la Raspberry Pi 5.                                                             |
+| Secret   | `DEPLOY_USER`                        | `deploy-raspberry-pi`            | Usuario SSH dedicado en la Pi con permisos mínimos (`docker`).                                                   |
+| Secret   | `DEPLOY_PATH`                        | `deploy-raspberry-pi`            | Ruta absoluta en la Pi (`/opt/docker/apps/DreamFive`).                                                           |
+| Secret   | `DEPLOY_SSH_KEY`                     | `deploy-raspberry-pi`            | Clave privada SSH exclusiva para despliegue (sin usar claves personales).                                        |
+| Secret   | `DEPLOY_SSH_KNOWN_HOSTS`             | `deploy-raspberry-pi`            | Salida de `ssh-keyscan -p <puerto> <host>` para validar la huella del host (`StrictHostKeyChecking`).            |
+| Secret   | `GHCR_PULL_USER` / `GHCR_PULL_TOKEN` | `deploy-raspberry-pi` (opcional) | Credenciales `read:packages` si prefieres un token dedicado en lugar de `GITHUB_TOKEN`.                          |
 
 ### Cómo consultar resultados y actuar ante un fallo
 
@@ -143,7 +171,7 @@ El workflow cancela automáticamente ejecuciones obsoletas únicamente en Pull R
 3. **Si falla `integration`:** levanta PostgreSQL y Redis locales (`pnpm docker:infra`), aplica `pnpm run db:migrate:deploy` y ejecuta `pnpm --filter @dreamfive/database run test` o `pnpm --filter @dreamfive/api run test`.
 4. **Si falla `e2e`:** descarga el artefacto `playwright-report` adjunto en la ejecución de GitHub Actions (incluye el informe HTML de Playwright y `api-e2e.log`) para revisar trazas y capturas.
 5. **Si falla `docker-and-security`:** ejecuta `pnpm audit --prod --audit-level=high` y `docker compose config --quiet` en local; nunca desactives auditorías ni controles de seguridad para forzar un verde.
-6. **Si falla `deploy-ssh`:** revisa en el log si se completó el rollback automático hacia `.deploy_current_tag` y comprueba en el servidor `docker compose ps` y `docker compose logs --tail=100 api worker web`.
+6. **Si falla `deploy-raspberry-pi`:** revisa en el log los últimos eventos y si se completó el rollback automático hacia `.deploy_current_tag`, y comprueba en la Pi `docker compose -f docker-compose.prod.yml ps` y `docker compose -f docker-compose.prod.yml logs --tail=100 api worker web`.
 
 ---
 
