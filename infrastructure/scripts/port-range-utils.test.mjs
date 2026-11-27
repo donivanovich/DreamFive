@@ -103,38 +103,49 @@ describe('port-range-utils', () => {
     }
   });
 
-  it('rewrites loopback URLs and keeps production domains untouched', () => {
-    assert.equal(rewriteLoopbackUrlPort('http://localhost:3101', 3105), 'http://localhost:3105');
-    assert.equal(rewriteLoopbackUrlPort('http://127.0.0.1:3100/', 3104), 'http://127.0.0.1:3104');
-    assert.equal(rewriteLoopbackUrlPort('https://dreamfive.app/', 3104), 'https://dreamfive.app');
+  it('rewrites loopback URLs and keeps relative paths and production domains untouched', () => {
+    assert.equal(rewriteLoopbackUrlPort('http://localhost:3000', 3005), 'http://localhost:3005');
+    assert.equal(rewriteLoopbackUrlPort('http://127.0.0.1:3000/', 3004), 'http://127.0.0.1:3004');
+    assert.equal(rewriteLoopbackUrlPort('/api/', 3004), '/api');
+    assert.equal(
+      rewriteLoopbackUrlPort('https://dreamfive.donivanovich.dev/', 3004),
+      'https://dreamfive.donivanovich.dev',
+    );
   });
 
-  it('syncs API_CORS_ORIGINS, VITE_API_URL, and WEB_PUBLIC_URL when fallback ports are used', () => {
+  it('syncs gateway port, API_CORS_ORIGINS, and WEB_PUBLIC_URL while preserving relative VITE_API_URL', () => {
     assert.equal(
-      appendLoopbackCorsOrigins('https://dreamfive.app', 3104),
-      'https://dreamfive.app,http://localhost:3104,http://127.0.0.1:3104',
+      appendLoopbackCorsOrigins('https://dreamfive.donivanovich.dev', 3004),
+      'https://dreamfive.donivanovich.dev,http://localhost:3004,http://127.0.0.1:3004',
     );
 
     const overrides = buildComposeEnvOverrides({
+      env: {
+        VITE_API_URL: '/api',
+        WEB_PUBLIC_URL: 'http://localhost:3000',
+        API_CORS_ORIGINS: 'http://localhost:3000',
+      },
+      resolved: [{ name: 'gateway', assignedPort: 3004, fallbackUsed: true }],
+    });
+
+    assert.equal(overrides['GATEWAY_PORT'], '3004');
+    assert.equal(overrides['GATEWAY_PORT_RANGE'], '3004');
+    assert.equal(overrides['VITE_API_URL'], '/api');
+    assert.equal(overrides['WEB_PUBLIC_URL'], 'http://localhost:3004');
+    assert.equal(overrides['VITE_PUBLIC_URL'], 'http://localhost:3004');
+    assert.equal(
+      overrides['API_CORS_ORIGINS'],
+      'http://localhost:3000,http://localhost:3004,http://127.0.0.1:3004',
+    );
+
+    const legacyOverrides = buildComposeEnvOverrides({
       env: {
         VITE_API_URL: 'http://localhost:3101',
         WEB_PUBLIC_URL: 'http://localhost:3100',
         API_CORS_ORIGINS: 'http://localhost:3100',
       },
-      resolved: [
-        { name: 'api', assignedPort: 3105, fallbackUsed: true },
-        { name: 'web', assignedPort: 3104, fallbackUsed: true },
-      ],
+      resolved: [{ name: 'gateway', assignedPort: 3000, fallbackUsed: false }],
     });
-
-    assert.equal(overrides['API_PORT_RANGE'], '3105');
-    assert.equal(overrides['WEB_PORT_RANGE'], '3104');
-    assert.equal(overrides['VITE_API_URL'], 'http://localhost:3105');
-    assert.equal(overrides['WEB_PUBLIC_URL'], 'http://localhost:3104');
-    assert.equal(overrides['VITE_PUBLIC_URL'], 'http://localhost:3104');
-    assert.equal(
-      overrides['API_CORS_ORIGINS'],
-      'http://localhost:3100,http://localhost:3104,http://127.0.0.1:3104',
-    );
+    assert.equal(legacyOverrides['VITE_API_URL'], '/api');
   });
 });

@@ -37,8 +37,10 @@ logs/
 npm-debug.log*
 pnpm-debug.log*
 
-# --- Docker (overrides locales de cada desarrollador) ---
+# --- Docker (overrides locales y estado de despliegue) ---
 docker-compose.override.yml
+.docker-compose.prod.yml.bak
+.deploy_current_tag
 
 # --- Editores y sistema operativo ---
 .vscode/*

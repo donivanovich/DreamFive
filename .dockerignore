@@ -17,11 +17,14 @@ packages/database/src/generated
 .idea
 docs
 infrastructure/monitoring
+infrastructure/nginx
 **/README.md
 
 .env
 .env.*
 !.env.example
+.deploy_current_tag
+.docker-compose.prod.yml.bak
 **/*.pem
 **/*.key
 secrets

@@ -241,7 +241,7 @@ const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1']);
 
 /**
  * Actualiza el puerto de una URL solo si apunta a loopback (`localhost` / `127.0.0.1`),
- * dejando intactos dominios públicos de producción.
+ * dejando intactas rutas relativas (`/api`) y dominios públicos de producción.
  *
  * @param {string | undefined} rawUrl
  * @param {number} nextPort
@@ -252,40 +252,47 @@ export function rewriteLoopbackUrlPort(rawUrl, nextPort) {
   if (!rawUrl || rawUrl.trim().length === 0) {
     return fallback;
   }
+  const trimmed = rawUrl.trim();
+  if (trimmed.startsWith('/')) {
+    return trimmed.replace(/\/+$/, '') || '/';
+  }
   try {
-    const parsed = new URL(rawUrl.trim());
+    const parsed = new URL(trimmed);
     if (LOOPBACK_HOSTS.has(parsed.hostname)) {
       parsed.port = String(nextPort);
       return parsed.toString().replace(/\/+$/, '');
     }
-    return rawUrl.trim().replace(/\/+$/, '');
+    return trimmed.replace(/\/+$/, '');
   } catch {
     return fallback;
   }
 }
 
 /**
- * Garantiza que `http://localhost:<webPort>` y `http://127.0.0.1:<webPort>`
+ * Garantiza que `http://localhost:<publicPort>` y `http://127.0.0.1:<publicPort>`
  * estén presentes en `API_CORS_ORIGINS` sin eliminar orígenes previos.
  *
  * @param {string | undefined} rawOrigins
- * @param {number} webPort
+ * @param {number} publicPort
  * @returns {string}
  */
-export function appendLoopbackCorsOrigins(rawOrigins, webPort) {
+export function appendLoopbackCorsOrigins(rawOrigins, publicPort) {
   const origins = new Set(
     (rawOrigins ?? '')
       .split(',')
       .map((item) => item.trim())
       .filter((item) => item.length > 0),
   );
-  origins.add(`http://localhost:${String(webPort)}`);
-  origins.add(`http://127.0.0.1:${String(webPort)}`);
+  origins.add(`http://localhost:${String(publicPort)}`);
+  origins.add(`http://127.0.0.1:${String(publicPort)}`);
   return [...origins].join(',');
 }
 
 /**
  * Calcula las variables de entorno sincronizadas para `docker compose`.
+ *
+ * En modo stack completo únicamente `gateway` publica puerto en el host;
+ * `VITE_API_URL` se mantiene en ruta relativa (`/api`) cuando está configurada así.
  *
  * @param {{
  *   env: Record<string, string | undefined>;
@@ -298,22 +305,34 @@ export function buildComposeEnvOverrides({ env, resolved }) {
   const overrides = {};
   const byName = new Map(resolved.map((entry) => [entry.name, entry]));
 
-  const api = byName.get('api');
-  if (api) {
-    overrides['API_PORT'] = String(api.assignedPort);
-    overrides['API_PORT_RANGE'] = String(api.assignedPort);
-    overrides['VITE_API_URL'] = rewriteLoopbackUrlPort(env['VITE_API_URL'], api.assignedPort);
-  }
-
-  const web = byName.get('web');
-  if (web) {
-    overrides['WEB_PORT'] = String(web.assignedPort);
-    overrides['WEB_PORT_RANGE'] = String(web.assignedPort);
-    overrides['WEB_PUBLIC_URL'] = rewriteLoopbackUrlPort(env['WEB_PUBLIC_URL'], web.assignedPort);
+  const gateway = byName.get('gateway');
+  if (gateway) {
+    overrides['GATEWAY_PORT'] = String(gateway.assignedPort);
+    overrides['GATEWAY_PORT_RANGE'] = String(gateway.assignedPort);
+    overrides['WEB_PUBLIC_URL'] = rewriteLoopbackUrlPort(
+      env['WEB_PUBLIC_URL'],
+      gateway.assignedPort,
+    );
     overrides['VITE_PUBLIC_URL'] = overrides['WEB_PUBLIC_URL'];
+    const rawViteApi = env['VITE_API_URL']?.trim() ?? '';
+    let resolvedViteApi = '/api';
+    if (rawViteApi.startsWith('/')) {
+      resolvedViteApi = rawViteApi.replace(/\/+$/, '') || '/api';
+    } else if (rawViteApi.length > 0) {
+      try {
+        const parsedApi = new URL(rawViteApi);
+        // En modo gateway Docker la API no publica puerto propio en loopback: normaliza a `/api`.
+        resolvedViteApi = LOOPBACK_HOSTS.has(parsedApi.hostname)
+          ? '/api'
+          : rawViteApi.replace(/\/+$/, '');
+      } catch {
+        resolvedViteApi = '/api';
+      }
+    }
+    overrides['VITE_API_URL'] = resolvedViteApi;
     overrides['API_CORS_ORIGINS'] = appendLoopbackCorsOrigins(
       env['API_CORS_ORIGINS'],
-      web.assignedPort,
+      gateway.assignedPort,
     );
   }
 

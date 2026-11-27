@@ -1,20 +1,20 @@
 name: CD
 
 on:
-  push:
+  workflow_run:
+    workflows: ['CI']
+    types: [completed]
     branches: [main]
-    tags:
-      - 'v*.*.*'
   workflow_dispatch:
     inputs:
       deploy:
-        description: 'Ejecutar despliegue SSH tras publicar imágenes (requiere DEPLOY_ENABLED=true y secretos SSH)'
+        description: 'Desplegar automáticamente en la Raspberry Pi 5 por SSH tras publicar en GHCR'
         required: false
         type: boolean
         default: true
 
 concurrency:
-  group: cd-${{ github.ref }}
+  group: cd-main
   cancel-in-progress: false
 
 permissions:
@@ -24,46 +24,62 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
-  pre-release-check:
-    name: Verificación previa a entrega
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+  publish-images:
+    name: Publicar imágenes linux/arm64 en GHCR
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 25
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event_name == 'workflow_run' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.head_branch == 'main' &&
+        (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_dispatch')
+      )
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      target_sha: ${{ steps.release_meta.outputs.target_sha }}
+      image_tag: ${{ steps.release_meta.outputs.image_tag }}
+      image_prefix: ${{ steps.release_meta.outputs.image_prefix }}
     steps:
-      - name: Descargar código
-        uses: actions/checkout@v6
-
-      - name: Preparar entorno Node.js y pnpm
-        uses: ./.github/actions/setup-workspace
-
-      - name: Auditar dependencias de producción
-        run: pnpm audit --prod --audit-level=high
-
-      - name: Validar sintaxis de Docker Compose
+      - name: Calcular metadatos exactos del commit verificado por CI
+        id: release_meta
         env:
+          WORKFLOW_RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          TARGET_SHA="${WORKFLOW_RUN_SHA:-${GITHUB_SHA}}"
+          SHORT_SHA="$(printf '%s' "${TARGET_SHA}" | cut -c1-7)"
+          REPO_LOWER="$(printf '%s' "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')"
+          IMAGE_PREFIX="${REGISTRY}/${REPO_LOWER}"
+          CREATED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          {
+            echo "target_sha=${TARGET_SHA}"
+            echo "image_tag=sha-${SHORT_SHA}"
+            echo "image_prefix=${IMAGE_PREFIX}"
+            echo "created_at=${CREATED_AT}"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Descargar commit exacto verificado por CI
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.release_meta.outputs.target_sha }}
+
+      - name: Validar sintaxis de docker-compose.prod.yml
+        env:
+          GHCR_IMAGE_PREFIX: ${{ steps.release_meta.outputs.image_prefix }}
+          IMAGE_TAG: ${{ steps.release_meta.outputs.image_tag }}
           POSTGRES_USER: ci_user
           POSTGRES_PASSWORD: ci-placeholder-password
           POSTGRES_DB: dreamfive_ci
           REDIS_PASSWORD: ci-placeholder-redis-password
-          API_CORS_ORIGINS: http://localhost:3000
-        run: docker compose config --quiet
+          API_CORS_ORIGINS: https://dreamfive.donivanovich.dev
+          WEB_PUBLIC_URL: https://dreamfive.donivanovich.dev
+        run: docker compose -f docker-compose.prod.yml config --quiet
 
-  publish-images:
-    name: Publicar imagen GHCR (${{ matrix.target }})
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    needs: pre-release-check
-    permissions:
-      contents: read
-      packages: write
-    strategy:
-      fail-fast: true
-      matrix:
-        target: [api, worker, web, migrate, seed]
-    steps:
-      - name: Descargar código
-        uses: actions/checkout@v6
-
-      - name: Configurar Docker Buildx
+      - name: Configurar Docker Buildx (nativo linux/arm64)
         uses: docker/setup-buildx-action@v4
 
       - name: Iniciar sesión en GitHub Container Registry (GHCR)
@@ -73,38 +89,119 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Calcular etiquetas y metadatos OCI
-        id: meta
-        uses: docker/metadata-action@v6
-        with:
-          images: ${{ env.REGISTRY }}/${{ github.repository }}-${{ matrix.target }}
-          tags: |
-            type=sha,prefix=sha-,format=short
-            type=ref,event=branch
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest,enable={{is_default_branch}}
-
-      - name: Construir y publicar imagen (${{ matrix.target }})
+      - name: Construir y publicar imagen api (linux/arm64)
         uses: docker/build-push-action@v7
         with:
           context: .
           file: infrastructure/docker/node.Dockerfile
-          target: ${{ matrix.target }}
+          target: api
+          platforms: linux/arm64
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: |
+            ${{ steps.release_meta.outputs.image_prefix }}-api:${{ steps.release_meta.outputs.image_tag }}
+            ${{ steps.release_meta.outputs.image_prefix }}-api:main
+            ${{ steps.release_meta.outputs.image_prefix }}-api:latest
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ steps.release_meta.outputs.target_sha }}
+            org.opencontainers.image.created=${{ steps.release_meta.outputs.created_at }}
           build-args: |
-            VITE_API_URL=${{ vars.VITE_API_URL || 'http://localhost:3101' }}
-            VITE_PUBLIC_URL=${{ vars.VITE_PUBLIC_URL || 'http://localhost:3100' }}
+            VITE_API_URL=${{ vars.VITE_API_URL || '/api' }}
+            VITE_PUBLIC_URL=${{ vars.VITE_PUBLIC_URL || 'https://dreamfive.donivanovich.dev' }}
             VITE_DEV_TOOLS_ENABLED=false
-          cache-from: |
-            type=gha,scope=dreamfive-${{ matrix.target }}
-            type=gha,scope=dreamfive-docker
-          cache-to: type=gha,scope=dreamfive-${{ matrix.target }},mode=max
+          cache-from: type=gha,scope=dreamfive-arm64
+          cache-to: type=gha,scope=dreamfive-arm64,mode=max
 
-  deploy-ssh:
-    name: Despliegue en servidor propio (SSH)
+      - name: Construir y publicar imagen worker (linux/arm64)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: infrastructure/docker/node.Dockerfile
+          target: worker
+          platforms: linux/arm64
+          push: true
+          tags: |
+            ${{ steps.release_meta.outputs.image_prefix }}-worker:${{ steps.release_meta.outputs.image_tag }}
+            ${{ steps.release_meta.outputs.image_prefix }}-worker:main
+            ${{ steps.release_meta.outputs.image_prefix }}-worker:latest
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ steps.release_meta.outputs.target_sha }}
+            org.opencontainers.image.created=${{ steps.release_meta.outputs.created_at }}
+          build-args: |
+            VITE_API_URL=${{ vars.VITE_API_URL || '/api' }}
+            VITE_PUBLIC_URL=${{ vars.VITE_PUBLIC_URL || 'https://dreamfive.donivanovich.dev' }}
+            VITE_DEV_TOOLS_ENABLED=false
+          cache-from: type=gha,scope=dreamfive-arm64
+
+      - name: Construir y publicar imagen web (linux/arm64)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: infrastructure/docker/node.Dockerfile
+          target: web
+          platforms: linux/arm64
+          push: true
+          tags: |
+            ${{ steps.release_meta.outputs.image_prefix }}-web:${{ steps.release_meta.outputs.image_tag }}
+            ${{ steps.release_meta.outputs.image_prefix }}-web:main
+            ${{ steps.release_meta.outputs.image_prefix }}-web:latest
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ steps.release_meta.outputs.target_sha }}
+            org.opencontainers.image.created=${{ steps.release_meta.outputs.created_at }}
+          build-args: |
+            VITE_API_URL=${{ vars.VITE_API_URL || '/api' }}
+            VITE_PUBLIC_URL=${{ vars.VITE_PUBLIC_URL || 'https://dreamfive.donivanovich.dev' }}
+            VITE_DEV_TOOLS_ENABLED=false
+          cache-from: type=gha,scope=dreamfive-arm64
+
+      - name: Construir y publicar imagen migrate (linux/arm64)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: infrastructure/docker/node.Dockerfile
+          target: migrate
+          platforms: linux/arm64
+          push: true
+          tags: |
+            ${{ steps.release_meta.outputs.image_prefix }}-migrate:${{ steps.release_meta.outputs.image_tag }}
+            ${{ steps.release_meta.outputs.image_prefix }}-migrate:main
+            ${{ steps.release_meta.outputs.image_prefix }}-migrate:latest
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ steps.release_meta.outputs.target_sha }}
+            org.opencontainers.image.created=${{ steps.release_meta.outputs.created_at }}
+          build-args: |
+            VITE_API_URL=${{ vars.VITE_API_URL || '/api' }}
+            VITE_PUBLIC_URL=${{ vars.VITE_PUBLIC_URL || 'https://dreamfive.donivanovich.dev' }}
+            VITE_DEV_TOOLS_ENABLED=false
+          cache-from: type=gha,scope=dreamfive-arm64
+
+      - name: Construir y publicar imagen seed (linux/arm64)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: infrastructure/docker/node.Dockerfile
+          target: seed
+          platforms: linux/arm64
+          push: true
+          tags: |
+            ${{ steps.release_meta.outputs.image_prefix }}-seed:${{ steps.release_meta.outputs.image_tag }}
+            ${{ steps.release_meta.outputs.image_prefix }}-seed:main
+            ${{ steps.release_meta.outputs.image_prefix }}-seed:latest
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ steps.release_meta.outputs.target_sha }}
+            org.opencontainers.image.created=${{ steps.release_meta.outputs.created_at }}
+          build-args: |
+            VITE_API_URL=${{ vars.VITE_API_URL || '/api' }}
+            VITE_PUBLIC_URL=${{ vars.VITE_PUBLIC_URL || 'https://dreamfive.donivanovich.dev' }}
+            VITE_DEV_TOOLS_ENABLED=false
+          cache-from: type=gha,scope=dreamfive-arm64
+
+  deploy-raspberry-pi:
+    name: Desplegar en Raspberry Pi 5 (SSH)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: publish-images
@@ -114,8 +211,18 @@ jobs:
       (github.event_name != 'workflow_dispatch' || inputs.deploy == true)
     permissions:
       contents: read
+      packages: read
     steps:
-      - name: Comprobar configuración de secretos de despliegue
+      - name: Descargar docker-compose.prod.yml y configuración Nginx del commit verificado
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.publish-images.outputs.target_sha }}
+          sparse-checkout: |
+            docker-compose.prod.yml
+            infrastructure/nginx/default.conf
+          sparse-checkout-cone-mode: false
+
+      - name: Validar secretos obligatorios de despliegue SSH
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
@@ -130,7 +237,7 @@ jobs:
             fi
           done
 
-      - name: Configurar clave SSH temporal con permisos restringidos
+      - name: Configurar clave SSH temporal con permisos mínimos
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           DEPLOY_SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}
@@ -142,7 +249,7 @@ jobs:
           printf '%s\n' "${DEPLOY_SSH_KNOWN_HOSTS}" > "${RUNNER_TEMP}/.ssh/known_hosts"
           chmod 644 "${RUNNER_TEMP}/.ssh/known_hosts"
 
-      - name: Autenticar servidor remoto en GHCR
+      - name: Autenticar Raspberry Pi 5 en GHCR (sin exponer token)
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_PORT: ${{ vars.DEPLOY_PORT || '22' }}
@@ -159,45 +266,137 @@ jobs:
             "${DEPLOY_USER}@${DEPLOY_HOST}" \
             docker login ghcr.io -u "${GHCR_USERNAME}" --password-stdin
 
-      - name: Desplegar nueva versión y verificar salud (con rollback automático)
+      - name: Transferir docker-compose.prod.yml y configuración del gateway Nginx (sin modificar .env)
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_PORT: ${{ vars.DEPLOY_PORT || '22' }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
-          API_HEALTH_URL: ${{ vars.DEPLOY_API_HEALTH_URL || 'http://127.0.0.1:3101/health/ready' }}
-          WEB_HEALTH_URL: ${{ vars.DEPLOY_WEB_HEALTH_URL || 'http://127.0.0.1:3100/' }}
         run: |
           set -euo pipefail
-          TARGET_TAG="sha-$(printf '%s' "${GITHUB_SHA}" | cut -c1-7)"
           ssh \
             -i "${RUNNER_TEMP}/.ssh/deploy_key" \
             -o UserKnownHostsFile="${RUNNER_TEMP}/.ssh/known_hosts" \
             -o StrictHostKeyChecking=yes \
             -p "${DEPLOY_PORT}" \
             "${DEPLOY_USER}@${DEPLOY_HOST}" \
-            bash -s -- "${DEPLOY_PATH}" "${TARGET_TAG}" "${API_HEALTH_URL}" "${WEB_HEALTH_URL}" <<'REMOTE_SCRIPT'
+            mkdir -p "${DEPLOY_PATH}/infrastructure/nginx"
+          scp \
+            -i "${RUNNER_TEMP}/.ssh/deploy_key" \
+            -o UserKnownHostsFile="${RUNNER_TEMP}/.ssh/known_hosts" \
+            -o StrictHostKeyChecking=yes \
+            -P "${DEPLOY_PORT}" \
+            docker-compose.prod.yml \
+            "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/.docker-compose.prod.yml.next"
+          scp \
+            -i "${RUNNER_TEMP}/.ssh/deploy_key" \
+            -o UserKnownHostsFile="${RUNNER_TEMP}/.ssh/known_hosts" \
+            -o StrictHostKeyChecking=yes \
+            -P "${DEPLOY_PORT}" \
+            infrastructure/nginx/default.conf \
+            "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/infrastructure/nginx/.default.conf.next"
+
+      - name: Desplegar, verificar salud del gateway y contenedores (con rollback automático)
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ vars.DEPLOY_PORT || '22' }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          GHCR_IMAGE_PREFIX: ${{ needs.publish-images.outputs.image_prefix }}
+          TARGET_TAG: ${{ needs.publish-images.outputs.image_tag }}
+          GATEWAY_HEALTH_URL: ${{ vars.DEPLOY_GATEWAY_HEALTH_URL || 'http://127.0.0.1:3000/gateway-health' }}
+          API_HEALTH_URL: ${{ vars.DEPLOY_API_HEALTH_URL || 'http://127.0.0.1:3000/api/health/ready' }}
+          WEB_HEALTH_URL: ${{ vars.DEPLOY_WEB_HEALTH_URL || 'http://127.0.0.1:3000/' }}
+        run: |
+          set -euo pipefail
+          ssh \
+            -i "${RUNNER_TEMP}/.ssh/deploy_key" \
+            -o UserKnownHostsFile="${RUNNER_TEMP}/.ssh/known_hosts" \
+            -o StrictHostKeyChecking=yes \
+            -p "${DEPLOY_PORT}" \
+            "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            bash -s -- \
+              "${DEPLOY_PATH}" \
+              "${GHCR_IMAGE_PREFIX}" \
+              "${TARGET_TAG}" \
+              "${GATEWAY_HEALTH_URL}" \
+              "${API_HEALTH_URL}" \
+              "${WEB_HEALTH_URL}" <<'REMOTE_SCRIPT'
           set -euo pipefail
           DEPLOY_PATH="$1"
-          TARGET_TAG="$2"
-          API_HEALTH_URL="$3"
-          WEB_HEALTH_URL="$4"
+          GHCR_IMAGE_PREFIX="$2"
+          TARGET_TAG="$3"
+          GATEWAY_HEALTH_URL="$4"
+          API_HEALTH_URL="$5"
+          WEB_HEALTH_URL="$6"
+          COMPOSE_FILE="docker-compose.prod.yml"
+          NGINX_CONF="infrastructure/nginx/default.conf"
 
           cd "${DEPLOY_PATH}"
 
-          PREV_TAG=""
-          if [ -f .deploy_current_tag ]; then
-            PREV_TAG="$(cat .deploy_current_tag)"
+          if [ ! -f .env ]; then
+            echo "No existe ${DEPLOY_PATH}/.env en la Raspberry Pi." >&2
+            rm -f .docker-compose.prod.yml.next infrastructure/nginx/.default.conf.next
+            exit 1
           fi
 
+          export GHCR_IMAGE_PREFIX="${GHCR_IMAGE_PREFIX}"
           export IMAGE_TAG="${TARGET_TAG}"
-          docker compose pull api worker web migrate
-          docker compose run --rm migrate
-          docker compose up -d --no-deps --remove-orphans api worker web
 
-          verify_health() {
-            for i in $(seq 1 20); do
-              if curl -sf "${API_HEALTH_URL}" >/dev/null && curl -sf "${WEB_HEALTH_URL}" >/dev/null; then
+          # Validar el nuevo Compose antes de reemplazar el activo
+          docker compose -f .docker-compose.prod.yml.next config --quiet
+
+          if [ -f "${COMPOSE_FILE}" ]; then
+            cp "${COMPOSE_FILE}" .docker-compose.prod.yml.bak
+          fi
+          if [ -f "${NGINX_CONF}" ]; then
+            cp "${NGINX_CONF}" infrastructure/nginx/.default.conf.bak
+          fi
+          mv .docker-compose.prod.yml.next "${COMPOSE_FILE}"
+          mv infrastructure/nginx/.default.conf.next "${NGINX_CONF}"
+
+          PREV_TAG=""
+          if [ -f .deploy_current_tag ]; then
+            PREV_TAG="$(tr -d '[:space:]' < .deploy_current_tag)"
+          else
+            RUNNING_API_ID="$(docker compose -f "${COMPOSE_FILE}" ps -q api 2>/dev/null || true)"
+            if [ -n "${RUNNING_API_ID}" ]; then
+              RUNNING_IMAGE="$(docker inspect --format '{{.Config.Image}}' "${RUNNING_API_ID}" 2>/dev/null || true)"
+              if [[ "${RUNNING_IMAGE}" == *:* ]]; then
+                PREV_TAG="${RUNNING_IMAGE##*:}"
+              fi
+            fi
+          fi
+
+          restore_configs() {
+            if [ -f .docker-compose.prod.yml.bak ]; then
+              mv .docker-compose.prod.yml.bak "${COMPOSE_FILE}"
+            fi
+            if [ -f infrastructure/nginx/.default.conf.bak ]; then
+              mv infrastructure/nginx/.default.conf.bak "${NGINX_CONF}"
+            fi
+          }
+
+          wait_containers_healthy() {
+            local services=("$@")
+            for _ in $(seq 1 30); do
+              local all_ok=1
+              for svc in "${services[@]}"; do
+                local cid
+                cid="$(docker compose -f "${COMPOSE_FILE}" ps -q "${svc}")"
+                if [ -z "${cid}" ]; then
+                  all_ok=0
+                  break
+                fi
+                local state health
+                state="$(docker inspect --format '{{.State.Status}}' "${cid}")"
+                health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "${cid}")"
+                if [ "${state}" != "running" ] || { [ "${health}" != "healthy" ] && [ "${health}" != "none" ]; }; then
+                  all_ok=0
+                  break
+                fi
+              done
+              if [ "${all_ok}" -eq 1 ]; then
                 return 0
               fi
               sleep 3
@@ -205,23 +404,68 @@ jobs:
             return 1
           }
 
-          if verify_health; then
+          verify_http_endpoints() {
+            for _ in $(seq 1 15); do
+              if curl -sf "${GATEWAY_HEALTH_URL}" >/dev/null && \
+                 curl -sf "${API_HEALTH_URL}" >/dev/null && \
+                 curl -sf "${WEB_HEALTH_URL}" >/dev/null; then
+                return 0
+              fi
+              sleep 2
+            done
+            return 1
+          }
+
+          # 1. Descargar imágenes nuevas antes de tocar ningún servicio activo
+          docker compose -f "${COMPOSE_FILE}" --profile ops pull migrate
+          docker compose -f "${COMPOSE_FILE}" pull api worker web gateway
+
+          # 2. Asegurar postgres y redis activos SIN recrearlos si ya funcionan
+          docker compose -f "${COMPOSE_FILE}" up -d --no-recreate postgres redis
+          wait_containers_healthy postgres redis
+
+          # 3. Ejecutar migraciones antes de actualizar api, worker, web y gateway
+          if ! docker compose -f "${COMPOSE_FILE}" --profile ops run --rm migrate; then
+            echo "Fallo al aplicar migraciones Prisma para ${TARGET_TAG}. Los servicios activos no fueron reiniciados." >&2
+            restore_configs
+            exit 1
+          fi
+
+          # 4. Actualizar solo los servicios de aplicación y gateway sin interrumpir BD ni Redis
+          docker compose -f "${COMPOSE_FILE}" up -d --no-deps --remove-orphans api worker web gateway
+
+          # 5. Verificación real: estado healthy de gateway, api, worker y web + probes HTTP por el gateway
+          if wait_containers_healthy api worker web gateway && verify_http_endpoints; then
             printf '%s\n' "${TARGET_TAG}" > .deploy_current_tag
-            echo "Despliegue verificado correctamente con etiqueta ${TARGET_TAG}."
+            rm -f .docker-compose.prod.yml.bak infrastructure/nginx/.default.conf.bak
+            docker image prune -f --filter "until=168h" >/dev/null 2>&1 || true
+            docker compose -f "${COMPOSE_FILE}" ps
+            echo "Despliegue en Raspberry Pi 5 verificado correctamente (${TARGET_TAG})."
             exit 0
           fi
 
-          echo "Fallo en la comprobación de salud para ${TARGET_TAG}. Iniciando rollback..." >&2
-          if [ -n "${PREV_TAG}" ]; then
+          # 6. Estrategia de recuperación automática (rollback)
+          echo "ERROR: La verificación de salud falló para ${TARGET_TAG}." >&2
+          docker compose -f "${COMPOSE_FILE}" ps >&2 || true
+          docker compose -f "${COMPOSE_FILE}" logs --tail=40 gateway api worker web >&2 || true
+
+          restore_configs
+
+          if [ -n "${PREV_TAG}" ] && [ "${PREV_TAG}" != "${TARGET_TAG}" ]; then
+            echo "Iniciando rollback automático hacia ${PREV_TAG}..." >&2
             export IMAGE_TAG="${PREV_TAG}"
-            docker compose up -d --no-deps api worker web
-            echo "Rollback completado hacia ${PREV_TAG}." >&2
+            docker compose -f "${COMPOSE_FILE}" up -d --no-deps api worker web gateway
+            if wait_containers_healthy api worker web gateway && verify_http_endpoints; then
+              echo "Rollback hacia ${PREV_TAG} completado y verificado." >&2
+            else
+              echo "ATENCIÓN: El rollback hacia ${PREV_TAG} requiere revisión manual." >&2
+            fi
           else
-            echo "No existe etiqueta previa registrada para rollback automático." >&2
+            echo "No existe una versión previa distinta registrada para rollback automático." >&2
           fi
           exit 1
           REMOTE_SCRIPT
 
-      - name: Limpiar clave SSH temporal
+      - name: Limpiar credenciales SSH temporales
         if: always()
         run: rm -rf "${RUNNER_TEMP}/.ssh"

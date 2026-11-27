@@ -38,13 +38,17 @@ jobs:
       - name: Validar esquema Prisma
         run: pnpm run db:validate
 
-      - name: Validar sintaxis de Docker Compose
+      - name: Validar sintaxis de Docker Compose (base, desarrollo y producción)
         env:
+          GHCR_IMAGE_PREFIX: ghcr.io/ci/dreamfive
+          IMAGE_TAG: sha-0000000
           POSTGRES_USER: ci_user
           POSTGRES_PASSWORD: ci-placeholder-password
           POSTGRES_DB: dreamfive_ci
           REDIS_PASSWORD: ci-placeholder-redis-password
           API_CORS_ORIGINS: http://localhost:3000
+          WEB_PUBLIC_URL: http://localhost:3000
         run: |
           docker compose config --quiet
           docker compose -f docker-compose.yml -f docker-compose.dev.yml config --quiet
+          docker compose -f docker-compose.prod.yml config --quiet

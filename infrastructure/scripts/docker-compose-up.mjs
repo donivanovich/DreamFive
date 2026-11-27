@@ -109,8 +109,10 @@ async function main() {
 
   const runningPorts = readRunningProjectPorts(composeFileArgs);
 
-  const webPreferred = parsePortNumber(mergedEnv['WEB_PORT'], 3100);
-  const apiPreferred = parsePortNumber(mergedEnv['API_PORT'], 3101);
+  const gatewayPreferred = parsePortNumber(
+    mergedEnv['GATEWAY_PORT'] ?? mergedEnv['WEB_PORT'],
+    3000,
+  );
   const postgresPreferred = parsePortNumber(mergedEnv['POSTGRES_PORT'], 5432);
   const redisPreferred = parsePortNumber(mergedEnv['REDIS_PORT'], 6379);
 
@@ -139,24 +141,14 @@ async function main() {
       ]
     : [
         {
-          name: 'api',
-          preferredPort: apiPreferred,
+          name: 'gateway',
+          preferredPort: gatewayPreferred,
           range: parsePortRange(
-            mergedEnv['API_PORT_RANGE'],
-            apiPreferred,
-            Math.min(apiPreferred + 98, 65_535),
+            mergedEnv['GATEWAY_PORT_RANGE'],
+            gatewayPreferred,
+            Math.min(gatewayPreferred + 99, 65_535),
           ),
-          reusablePort: runningPorts.get('api') ?? null,
-        },
-        {
-          name: 'web',
-          preferredPort: webPreferred,
-          range: parsePortRange(
-            mergedEnv['WEB_PORT_RANGE'],
-            webPreferred,
-            Math.min(webPreferred + 99, 65_535),
-          ),
-          reusablePort: runningPorts.get('web') ?? null,
+          reusablePort: runningPorts.get('gateway') ?? null,
         },
       ];
 
@@ -174,8 +166,8 @@ async function main() {
   }
 
   if (!infraMode && overrides['WEB_PUBLIC_URL'] && overrides['VITE_API_URL']) {
-    process.stdout.write(`  - Web URL: ${overrides['WEB_PUBLIC_URL']}\n`);
-    process.stdout.write(`  - API URL: ${overrides['VITE_API_URL']}\n`);
+    process.stdout.write(`  - Gateway URL: ${overrides['WEB_PUBLIC_URL']}\n`);
+    process.stdout.write(`  - API path:    ${overrides['VITE_API_URL']}\n`);
   }
 
   if (dryRun) {

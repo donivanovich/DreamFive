@@ -38,7 +38,7 @@ COPY packages/simulation-engine/package.json packages/simulation-engine/
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
     pnpm install --frozen-lockfile
 COPY . .
-ARG VITE_API_URL=http://localhost:3001
+ARG VITE_API_URL=/api
 ARG VITE_PUBLIC_URL=http://localhost:3000
 ARG VITE_DEV_TOOLS_ENABLED=false
 ENV VITE_API_URL=${VITE_API_URL} \
