@@ -5,21 +5,58 @@ on:
     branches: [main, develop]
   pull_request:
     branches: [main, develop]
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
 
 env:
-  NODE_VERSION: '24.22.3'
   CI: true
 
 jobs:
-  quality:
-    name: Calidad, compilación y pruebas unitarias
+  static-and-unit:
+    name: Calidad estática, build y pruebas unitarias
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v6
+
+      - name: Preparar entorno Node.js y pnpm
+        uses: ./.github/actions/setup-workspace
+
+      - name: Validar esquema Prisma
+        run: pnpm run db:validate
+
+      - name: Generar cliente Prisma y compilar paquetes internos
+        run: pnpm run build:packages
+
+      - name: Comprobar formato (Prettier)
+        run: pnpm run format:check
+
+      - name: Comprobar linter (ESLint estricto)
+        run: pnpm exec eslint . --max-warnings=0
+
+      - name: Comprobar tipos (TypeScript estricto)
+        run: pnpm -r --sort run typecheck
+
+      - name: Compilar monorepo completo (producción)
+        run: pnpm run build
+
+      - name: Ejecutar pruebas unitarias (shared, simulation-engine, web, worker y scripts)
+        run: |
+          pnpm --filter @dreamfive/shared run test
+          pnpm --filter @dreamfive/simulation-engine run test
+          pnpm --filter @dreamfive/web run test
+          pnpm --filter @dreamfive/worker run test
+          node --test infrastructure/scripts/*.test.mjs
+
+  integration:
+    name: Pruebas de integración (PostgreSQL + Redis)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     services:
@@ -59,47 +96,100 @@ jobs:
       - name: Descargar código
         uses: actions/checkout@v6
 
-      - name: Instalar pnpm
-        uses: pnpm/action-setup@v5
+      - name: Preparar entorno Node.js y pnpm
+        uses: ./.github/actions/setup-workspace
 
-      - name: Configurar Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: pnpm
-
-      - name: Instalar dependencias (lockfile congelado)
-        run: pnpm install --frozen-lockfile
-
-      - name: Validar esquema Prisma
-        run: pnpm run db:validate
-
-      - name: Generar cliente Prisma y compilar paquetes internos
+      - name: Compilar paquetes internos y cliente Prisma
         run: pnpm run build:packages
-
-      - name: Comprobar formato (Prettier)
-        run: pnpm run format:check
-
-      - name: Comprobar linter (ESLint)
-        run: pnpm run lint
-
-      - name: Comprobar tipos (TypeScript estricto)
-        run: pnpm run typecheck
-
-      - name: Compilar aplicaciones y paquetes
-        run: pnpm run build
 
       - name: Aplicar migraciones Prisma de prueba
         run: pnpm run db:migrate:deploy
 
-      - name: Ejecutar pruebas unitarias y de integración (Vitest)
-        run: pnpm run test
+      - name: Ejecutar pruebas de integración de dominio (@dreamfive/database)
+        run: pnpm --filter @dreamfive/database run test
+
+      - name: Ejecutar pruebas de integración HTTP/API (@dreamfive/api)
+        run: pnpm --filter @dreamfive/api run test
+
+  docker-and-security:
+    name: Validación Docker y auditoría de dependencias
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v6
+
+      - name: Preparar entorno Node.js y pnpm
+        uses: ./.github/actions/setup-workspace
+
+      - name: Auditar dependencias de producción (severidad alta/crítica)
+        run: pnpm audit --prod --audit-level=high
+
+      - name: Validar sintaxis de Docker Compose (base y desarrollo)
+        env:
+          POSTGRES_USER: ci_user
+          POSTGRES_PASSWORD: ci-placeholder-password
+          POSTGRES_DB: dreamfive_ci
+          REDIS_PASSWORD: ci-placeholder-redis-password
+          API_CORS_ORIGINS: http://localhost:3000
+        run: |
+          docker compose config --quiet
+          docker compose -f docker-compose.yml -f docker-compose.dev.yml config --quiet
+
+      - name: Configurar Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Validar build Docker (target api)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: infrastructure/docker/node.Dockerfile
+          target: api
+          push: false
+          cache-from: type=gha,scope=dreamfive-docker
+          cache-to: type=gha,scope=dreamfive-docker,mode=max
+
+      - name: Validar build Docker (target worker)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: infrastructure/docker/node.Dockerfile
+          target: worker
+          push: false
+          cache-from: type=gha,scope=dreamfive-docker
+
+      - name: Validar build Docker (target web)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: infrastructure/docker/node.Dockerfile
+          target: web
+          push: false
+          cache-from: type=gha,scope=dreamfive-docker
+
+      - name: Validar build Docker (target migrate)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: infrastructure/docker/node.Dockerfile
+          target: migrate
+          push: false
+          cache-from: type=gha,scope=dreamfive-docker
+
+      - name: Validar build Docker (target seed)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: infrastructure/docker/node.Dockerfile
+          target: seed
+          push: false
+          cache-from: type=gha,scope=dreamfive-docker
 
   e2e:
     name: Pruebas E2E (Playwright)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    needs: quality
+    timeout-minutes: 20
+    needs: [static-and-unit, integration]
     services:
       postgres:
         image: postgres:18.6-alpine3.24
@@ -141,20 +231,13 @@ jobs:
       - name: Descargar código
         uses: actions/checkout@v6
 
-      - name: Instalar pnpm
-        uses: pnpm/action-setup@v5
+      - name: Preparar entorno Node.js y pnpm
+        uses: ./.github/actions/setup-workspace
 
-      - name: Configurar Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: pnpm
-
-      - name: Instalar dependencias (lockfile congelado)
-        run: pnpm install --frozen-lockfile
-
-      - name: Compilar paquetes y aplicaciones
-        run: pnpm run build
+      - name: Compilar paquetes y API para E2E
+        run: |
+          pnpm run build:packages
+          pnpm run build:api
 
       - name: Preparar base de datos E2E y datos semilla
         run: |
@@ -175,8 +258,20 @@ jobs:
           cat api-e2e.log || true
           exit 1
 
-      - name: Instalar navegador Chromium para Playwright
+      - name: Restaurar caché de navegadores Playwright
+        uses: actions/cache@v6
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('apps/web/package.json', 'pnpm-lock.yaml') }}
+
+      - name: Instalar navegador Chromium y dependencias de sistema (sin caché)
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: pnpm --filter @dreamfive/web exec playwright install --with-deps chromium
+
+      - name: Instalar dependencias de sistema para Chromium (con caché)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: pnpm --filter @dreamfive/web exec playwright install-deps chromium
 
       - name: Ejecutar pruebas E2E
         run: pnpm run test:e2e
@@ -190,35 +285,3 @@ jobs:
             apps/web/playwright-report/
             api-e2e.log
           retention-days: 7
-
-  docker-and-audit:
-    name: Validación Docker y auditoría de dependencias
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - name: Descargar código
-        uses: actions/checkout@v6
-
-      - name: Instalar pnpm
-        uses: pnpm/action-setup@v5
-
-      - name: Configurar Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: pnpm
-
-      - name: Instalar dependencias (lockfile congelado)
-        run: pnpm install --frozen-lockfile
-
-      - name: Auditar dependencias de producción
-        run: pnpm audit --prod --audit-level=high
-
-      - name: Validar sintaxis de Docker Compose
-        env:
-          POSTGRES_USER: ci_user
-          POSTGRES_PASSWORD: ci-placeholder-password
-          POSTGRES_DB: dreamfive_ci
-          REDIS_PASSWORD: ci-placeholder-redis-password
-          API_CORS_ORIGINS: http://localhost:3000
-        run: docker compose config --quiet

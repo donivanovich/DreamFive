@@ -88,6 +88,65 @@ Los parámetros de balanceo todavía abiertos están centralizados en `PROVISION
 
 ---
 
+## CI/CD con GitHub Actions
+
+El repositorio incluye un pipeline automatizado de integración continua (**CI**), entrega continua de contenedores (**CD**) y auditoría periódica de seguridad ubicado en `.github/`:
+
+- **Acción reutilizable:** `.github/actions/setup-workspace/action.yml` — centraliza la instalación de `pnpm` (versión fijada por `packageManager`), Node.js (leído desde `.nvmrc`), caché del store de `pnpm` e instalación reproducible con `pnpm install --frozen-lockfile`.
+
+### Workflows disponibles
+
+| Workflow                   | Archivo                          | Disparadores                                                                        | Propósito principal                                                                                                            |
+| -------------------------- | -------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| **CI**                     | `.github/workflows/ci.yml`       | `push` (`main`, `develop`), `pull_request` (`main`, `develop`), `workflow_dispatch` | Validación estática, build, pruebas unitarias, integración real (PostgreSQL 18 + Redis 8), Docker, auditoría y E2E Playwright. |
+| **CD**                     | `.github/workflows/cd.yml`       | `push` (`main` y etiquetas `v*.*.*`), `workflow_dispatch`                           | Publicación de imágenes Docker en GitHub Container Registry (**GHCR**) y despliegue SSH opcional con rollback automático.      |
+| **Security & Maintenance** | `.github/workflows/security.yml` | `schedule` (lunes `06:00 UTC`), `workflow_dispatch`                                 | Auditoría semanal de dependencias, esquema Prisma y sintaxis Docker Compose.                                                   |
+
+### Validaciones realizadas en CI (`ci.yml`)
+
+El workflow cancela automáticamente ejecuciones obsoletas únicamente en Pull Requests (`cancel-in-progress: ${{ github.event_name == 'pull_request' }}`) y opera con permisos mínimos (`contents: read`):
+
+1. **`static-and-unit`:** `pnpm run db:validate`, `pnpm run build:packages`, `pnpm run format:check` (Prettier), `pnpm exec eslint . --max-warnings=0`, `pnpm -r --sort run typecheck`, `pnpm run build` y pruebas unitarias (`@dreamfive/shared`, `@dreamfive/simulation-engine`, `@dreamfive/web`, `@dreamfive/worker` e `infrastructure/scripts/*.test.mjs`).
+2. **`integration` (en paralelo):** levanta servicios `postgres:18.6-alpine3.24` y `redis:8.8.4-alpine3.23`, aplica `pnpm run db:migrate:deploy` y ejecuta las pruebas de integración de `@dreamfive/database` y `@dreamfive/api`.
+3. **`docker-and-security` (en paralelo):** ejecuta `pnpm audit --prod --audit-level=high`, valida `docker-compose.yml` y `docker-compose.dev.yml` con `docker compose config --quiet` y comprueba la compilación de los 5 _targets_ de `infrastructure/docker/node.Dockerfile` (`api`, `worker`, `web`, `migrate`, `seed`) sin publicar (`push: false`).
+4. **`e2e` (`needs: [static-and-unit, integration]`):** prepara la base de datos E2E (`db:migrate:deploy` + `db:seed`), levanta la API y verifica `/health/ready`, restaura la caché de Chromium para Playwright, ejecuta `pnpm run test:e2e` y adjunta `apps/web/playwright-report/` + `api-e2e.log` como artefacto (7 días) si falla.
+
+### Entrega y despliegue continuo (`cd.yml`)
+
+1. **`pre-release-check`:** verifica `pnpm audit --prod --audit-level=high` y `docker compose config --quiet`.
+2. **`publish-images` (`packages: write`):** construye y publica en **GHCR** las 5 imágenes (`ghcr.io/<owner>/dreamfive-{api,worker,web,migrate,seed}`) etiquetadas con `sha-<7-chars>`, nombre de rama (`main`), versión semántica (`vX.Y.Z` / `X.Y`) y `latest` solo como alias adicional en la rama por defecto.
+3. **`deploy-ssh` (opcional, entorno `production`):** solo se ejecuta si `vars.DEPLOY_ENABLED == 'true'`. Se conecta al VPS/servidor por SSH con `StrictHostKeyChecking=yes`, inicia sesión en GHCR mediante `--password-stdin`, descarga las imágenes del commit (`sha-<short>`), aplica migraciones (`docker compose run --rm migrate`), actualiza `api`, `worker` y `web` sin detener `postgres` ni `redis`, y comprueba los _healthchecks_. Si la verificación de salud falla, ejecuta **rollback automático** hacia la etiqueta registrada en `.deploy_current_tag`.
+
+> Para usar las imágenes de GHCR en un servidor propio, coloca en `DEPLOY_PATH` un `docker-compose.override.yml` que referencie `ghcr.io/<owner>/dreamfive-<servicio>:${IMAGE_TAG}` junto a tu `.env` de producción.
+
+### Secretos y variables de repositorio / entorno (`production`)
+
+| Tipo     | Nombre                               | Obligatorio para            | Descripción                                                                                        |
+| -------- | ------------------------------------ | --------------------------- | -------------------------------------------------------------------------------------------------- |
+| Variable | `VITE_API_URL`                       | `publish-images` (opcional) | URL pública de la API incrustada en el build de `web` (por defecto `http://localhost:3101`).       |
+| Variable | `VITE_PUBLIC_URL`                    | `publish-images` (opcional) | URL pública de la web para metadatos Open Graph / canonical (por defecto `http://localhost:3100`). |
+| Variable | `DEPLOY_ENABLED`                     | `deploy-ssh`                | Establecer en `true` para activar el despliegue SSH automático tras publicar en GHCR.              |
+| Variable | `DEPLOY_PORT`                        | `deploy-ssh` (opcional)     | Puerto SSH del servidor (por defecto `22`).                                                        |
+| Variable | `DEPLOY_API_HEALTH_URL`              | `deploy-ssh` (opcional)     | URL local del servidor para comprobar la API (por defecto `http://127.0.0.1:3101/health/ready`).   |
+| Variable | `DEPLOY_WEB_HEALTH_URL`              | `deploy-ssh` (opcional)     | URL local del servidor para comprobar la web (por defecto `http://127.0.0.1:3100/`).               |
+| Secret   | `DEPLOY_HOST`                        | `deploy-ssh`                | IP o dominio del servidor remoto.                                                                  |
+| Secret   | `DEPLOY_USER`                        | `deploy-ssh`                | Usuario SSH con permisos mínimos de despliegue (`docker`).                                         |
+| Secret   | `DEPLOY_PATH`                        | `deploy-ssh`                | Ruta absoluta en el servidor donde residen `docker-compose.yml` y `.env`.                          |
+| Secret   | `DEPLOY_SSH_KEY`                     | `deploy-ssh`                | Clave privada SSH dedicada exclusivamente al despliegue.                                           |
+| Secret   | `DEPLOY_SSH_KNOWN_HOSTS`             | `deploy-ssh`                | Salida de `ssh-keyscan -p <puerto> <host>` para validar la huella del servidor.                    |
+| Secret   | `GHCR_PULL_USER` / `GHCR_PULL_TOKEN` | `deploy-ssh` (opcional)     | Credenciales de solo lectura (`read:packages`) si los paquetes GHCR son privados.                  |
+
+### Cómo consultar resultados y actuar ante un fallo
+
+1. **Consultar resultados:** abre la pestaña **Actions** del repositorio en GitHub, selecciona el workflow (`CI`, `CD` o `Security & Maintenance`) y entra en el job concreto para inspeccionar logs paso a paso.
+2. **Si falla `static-and-unit`:** reproduce localmente con `pnpm run format:check`, `pnpm run lint`, `pnpm run typecheck` y `pnpm run build`.
+3. **Si falla `integration`:** levanta PostgreSQL y Redis locales (`pnpm docker:infra`), aplica `pnpm run db:migrate:deploy` y ejecuta `pnpm --filter @dreamfive/database run test` o `pnpm --filter @dreamfive/api run test`.
+4. **Si falla `e2e`:** descarga el artefacto `playwright-report` adjunto en la ejecución de GitHub Actions (incluye el informe HTML de Playwright y `api-e2e.log`) para revisar trazas y capturas.
+5. **Si falla `docker-and-security`:** ejecuta `pnpm audit --prod --audit-level=high` y `docker compose config --quiet` en local; nunca desactives auditorías ni controles de seguridad para forzar un verde.
+6. **Si falla `deploy-ssh`:** revisa en el log si se completó el rollback automático hacia `.deploy_current_tag` y comprueba en el servidor `docker compose ps` y `docker compose logs --tail=100 api worker web`.
+
+---
+
 ## Documentación completa (`docs/`)
 
 - [Índice documental](./docs/README.md)

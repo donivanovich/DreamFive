@@ -1,0 +1,18 @@
+name: Setup DreamFive Workspace
+description: Configura pnpm, Node.js (desde .nvmrc), caché del store e instala dependencias con lockfile congelado.
+
+runs:
+  using: composite
+  steps:
+    - name: Configurar pnpm
+      uses: pnpm/action-setup@v5
+
+    - name: Configurar Node.js (.nvmrc) y caché de pnpm
+      uses: actions/setup-node@v6
+      with:
+        node-version-file: '.nvmrc'
+        cache: pnpm
+
+    - name: Instalar dependencias (lockfile congelado)
+      shell: bash
+      run: pnpm install --frozen-lockfile

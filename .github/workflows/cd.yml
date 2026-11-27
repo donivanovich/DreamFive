@@ -1,0 +1,227 @@
+name: CD
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: 'Ejecutar despliegue SSH tras publicar imágenes (requiere DEPLOY_ENABLED=true y secretos SSH)'
+        required: false
+        type: boolean
+        default: true
+
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  pre-release-check:
+    name: Verificación previa a entrega
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v6
+
+      - name: Preparar entorno Node.js y pnpm
+        uses: ./.github/actions/setup-workspace
+
+      - name: Auditar dependencias de producción
+        run: pnpm audit --prod --audit-level=high
+
+      - name: Validar sintaxis de Docker Compose
+        env:
+          POSTGRES_USER: ci_user
+          POSTGRES_PASSWORD: ci-placeholder-password
+          POSTGRES_DB: dreamfive_ci
+          REDIS_PASSWORD: ci-placeholder-redis-password
+          API_CORS_ORIGINS: http://localhost:3000
+        run: docker compose config --quiet
+
+  publish-images:
+    name: Publicar imagen GHCR (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: pre-release-check
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: true
+      matrix:
+        target: [api, worker, web, migrate, seed]
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v6
+
+      - name: Configurar Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Iniciar sesión en GitHub Container Registry (GHCR)
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Calcular etiquetas y metadatos OCI
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}-${{ matrix.target }}
+          tags: |
+            type=sha,prefix=sha-,format=short
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Construir y publicar imagen (${{ matrix.target }})
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: infrastructure/docker/node.Dockerfile
+          target: ${{ matrix.target }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VITE_API_URL=${{ vars.VITE_API_URL || 'http://localhost:3101' }}
+            VITE_PUBLIC_URL=${{ vars.VITE_PUBLIC_URL || 'http://localhost:3100' }}
+            VITE_DEV_TOOLS_ENABLED=false
+          cache-from: |
+            type=gha,scope=dreamfive-${{ matrix.target }}
+            type=gha,scope=dreamfive-docker
+          cache-to: type=gha,scope=dreamfive-${{ matrix.target }},mode=max
+
+  deploy-ssh:
+    name: Despliegue en servidor propio (SSH)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: publish-images
+    environment: production
+    if: >-
+      vars.DEPLOY_ENABLED == 'true' &&
+      (github.event_name != 'workflow_dispatch' || inputs.deploy == true)
+    permissions:
+      contents: read
+    steps:
+      - name: Comprobar configuración de secretos de despliegue
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}
+        run: |
+          for var_name in DEPLOY_HOST DEPLOY_USER DEPLOY_PATH DEPLOY_SSH_KEY DEPLOY_SSH_KNOWN_HOSTS; do
+            if [ -z "${!var_name}" ]; then
+              echo "Falta el secreto obligatorio: ${var_name}" >&2
+              exit 1
+            fi
+          done
+
+      - name: Configurar clave SSH temporal con permisos restringidos
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}
+        run: |
+          mkdir -p "${RUNNER_TEMP}/.ssh"
+          chmod 700 "${RUNNER_TEMP}/.ssh"
+          printf '%s\n' "${DEPLOY_SSH_KEY}" > "${RUNNER_TEMP}/.ssh/deploy_key"
+          chmod 600 "${RUNNER_TEMP}/.ssh/deploy_key"
+          printf '%s\n' "${DEPLOY_SSH_KNOWN_HOSTS}" > "${RUNNER_TEMP}/.ssh/known_hosts"
+          chmod 644 "${RUNNER_TEMP}/.ssh/known_hosts"
+
+      - name: Autenticar servidor remoto en GHCR
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ vars.DEPLOY_PORT || '22' }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          GHCR_USERNAME: ${{ secrets.GHCR_PULL_USER || github.actor }}
+          GHCR_TOKEN: ${{ secrets.GHCR_PULL_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          printf '%s' "${GHCR_TOKEN}" | ssh \
+            -i "${RUNNER_TEMP}/.ssh/deploy_key" \
+            -o UserKnownHostsFile="${RUNNER_TEMP}/.ssh/known_hosts" \
+            -o StrictHostKeyChecking=yes \
+            -p "${DEPLOY_PORT}" \
+            "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            docker login ghcr.io -u "${GHCR_USERNAME}" --password-stdin
+
+      - name: Desplegar nueva versión y verificar salud (con rollback automático)
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ vars.DEPLOY_PORT || '22' }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          API_HEALTH_URL: ${{ vars.DEPLOY_API_HEALTH_URL || 'http://127.0.0.1:3101/health/ready' }}
+          WEB_HEALTH_URL: ${{ vars.DEPLOY_WEB_HEALTH_URL || 'http://127.0.0.1:3100/' }}
+        run: |
+          set -euo pipefail
+          TARGET_TAG="sha-$(printf '%s' "${GITHUB_SHA}" | cut -c1-7)"
+          ssh \
+            -i "${RUNNER_TEMP}/.ssh/deploy_key" \
+            -o UserKnownHostsFile="${RUNNER_TEMP}/.ssh/known_hosts" \
+            -o StrictHostKeyChecking=yes \
+            -p "${DEPLOY_PORT}" \
+            "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            bash -s -- "${DEPLOY_PATH}" "${TARGET_TAG}" "${API_HEALTH_URL}" "${WEB_HEALTH_URL}" <<'REMOTE_SCRIPT'
+          set -euo pipefail
+          DEPLOY_PATH="$1"
+          TARGET_TAG="$2"
+          API_HEALTH_URL="$3"
+          WEB_HEALTH_URL="$4"
+
+          cd "${DEPLOY_PATH}"
+
+          PREV_TAG=""
+          if [ -f .deploy_current_tag ]; then
+            PREV_TAG="$(cat .deploy_current_tag)"
+          fi
+
+          export IMAGE_TAG="${TARGET_TAG}"
+          docker compose pull api worker web migrate
+          docker compose run --rm migrate
+          docker compose up -d --no-deps --remove-orphans api worker web
+
+          verify_health() {
+            for i in $(seq 1 20); do
+              if curl -sf "${API_HEALTH_URL}" >/dev/null && curl -sf "${WEB_HEALTH_URL}" >/dev/null; then
+                return 0
+              fi
+              sleep 3
+            done
+            return 1
+          }
+
+          if verify_health; then
+            printf '%s\n' "${TARGET_TAG}" > .deploy_current_tag
+            echo "Despliegue verificado correctamente con etiqueta ${TARGET_TAG}."
+            exit 0
+          fi
+
+          echo "Fallo en la comprobación de salud para ${TARGET_TAG}. Iniciando rollback..." >&2
+          if [ -n "${PREV_TAG}" ]; then
+            export IMAGE_TAG="${PREV_TAG}"
+            docker compose up -d --no-deps api worker web
+            echo "Rollback completado hacia ${PREV_TAG}." >&2
+          else
+            echo "No existe etiqueta previa registrada para rollback automático." >&2
+          fi
+          exit 1
+          REMOTE_SCRIPT
+
+      - name: Limpiar clave SSH temporal
+        if: always()
+        run: rm -rf "${RUNNER_TEMP}/.ssh"
