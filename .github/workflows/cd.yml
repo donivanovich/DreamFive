@@ -206,14 +206,26 @@ jobs:
     timeout-minutes: 15
     needs: publish-images
     environment: production
-    if: >-
-      vars.DEPLOY_ENABLED == 'true' &&
-      (github.event_name != 'workflow_dispatch' || inputs.deploy == true)
+    if: github.event_name != 'workflow_dispatch' || inputs.deploy == true
     permissions:
       contents: read
       packages: read
     steps:
+      - name: Comprobar si el despliegue automático está habilitado
+        id: deploy_gate
+        env:
+          DEPLOY_ENABLED: ${{ vars.DEPLOY_ENABLED }}
+        run: |
+          if [ "${DEPLOY_ENABLED}" = "true" ]; then
+            echo "enabled=true" >> "${GITHUB_OUTPUT}"
+            echo "Despliegue habilitado (DEPLOY_ENABLED=true)."
+          else
+            echo "enabled=false" >> "${GITHUB_OUTPUT}"
+            echo "Despliegue omitido: DEPLOY_ENABLED no es 'true' en el environment 'production' ni a nivel de repositorio."
+          fi
+
       - name: Descargar docker-compose.prod.yml y configuración Nginx del commit verificado
+        if: steps.deploy_gate.outputs.enabled == 'true'
         uses: actions/checkout@v6
         with:
           ref: ${{ needs.publish-images.outputs.target_sha }}
@@ -223,6 +235,7 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - name: Validar secretos obligatorios de Tailscale y despliegue SSH
+        if: steps.deploy_gate.outputs.enabled == 'true'
         env:
           TS_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           TS_OAUTH_SECRET: ${{ secrets.TS_OAUTH_SECRET }}
@@ -240,6 +253,7 @@ jobs:
           done
 
       - name: Conectar GitHub Actions a Tailscale
+        if: steps.deploy_gate.outputs.enabled == 'true'
         uses: tailscale/github-action@v4
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
@@ -248,6 +262,7 @@ jobs:
           ping: ${{ secrets.DEPLOY_HOST }}
 
       - name: Configurar clave SSH temporal con permisos mínimos
+        if: steps.deploy_gate.outputs.enabled == 'true'
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           DEPLOY_SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}
@@ -260,6 +275,7 @@ jobs:
           chmod 644 "${RUNNER_TEMP}/.ssh/known_hosts"
 
       - name: Verificar conectividad TCP y autenticación SSH con Raspberry Pi 5
+        if: steps.deploy_gate.outputs.enabled == 'true'
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_PORT: ${{ vars.DEPLOY_PORT || '22' }}
@@ -282,6 +298,7 @@ jobs:
             'echo "SSH verificado en $(hostname) ($(uname -m))" && docker --version && docker compose version'
 
       - name: Autenticar Raspberry Pi 5 en GHCR (sin exponer token)
+        if: steps.deploy_gate.outputs.enabled == 'true'
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_PORT: ${{ vars.DEPLOY_PORT || '22' }}
@@ -301,6 +318,7 @@ jobs:
             docker login ghcr.io -u "${GHCR_USERNAME}" --password-stdin
 
       - name: Transferir docker-compose.prod.yml y configuración del gateway Nginx (sin modificar .env)
+        if: steps.deploy_gate.outputs.enabled == 'true'
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_PORT: ${{ vars.DEPLOY_PORT || '22' }}
@@ -337,6 +355,7 @@ jobs:
             "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/infrastructure/nginx/.default.conf.next"
 
       - name: Desplegar, verificar salud del gateway y contenedores (con rollback automático)
+        if: steps.deploy_gate.outputs.enabled == 'true'
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_PORT: ${{ vars.DEPLOY_PORT || '22' }}
