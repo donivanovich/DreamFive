@@ -221,7 +221,7 @@ jobs:
             docker-compose.prod.yml
             infrastructure/nginx/default.conf
           sparse-checkout-cone-mode: false
-          
+
       - name: Conectar GitHub Actions a Tailscale
         uses: tailscale/github-action@v4
         with:
@@ -229,7 +229,7 @@ jobs:
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:ci
           ping: 100.108.96.126
-          
+
       - name: Validar secretos obligatorios de despliegue SSH
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
