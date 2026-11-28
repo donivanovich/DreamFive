@@ -1,5 +1,5 @@
 import type { LeagueSummaryDto } from '@dreamfive/shared';
-import { Check, Crown, Users } from 'lucide-react';
+import { Check, Crown, Loader2, Users } from 'lucide-react';
 
 import { TeamLogo } from '@/components/players/PlayerBadges';
 import { Badge } from '@/components/ui/Badge';
@@ -40,6 +40,12 @@ export function LeagueCard({ league, isActive, onSelect, onManage }: LeagueCardP
                 {league.userRole === 'PRESIDENT' ? <Crown className="h-3 w-3" /> : null}
                 {roleLabel}
               </Badge>
+              {league.catchUpProgress?.inProgress ? (
+                <Badge variant="warning" className="gap-1 tabular-nums">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  {language === 'es' ? 'Simulando' : 'Syncing'} {league.catchUpProgress.percent}%
+                </Badge>
+              ) : null}
             </div>
             <h3 className="mt-2 truncate font-display text-lg font-bold tracking-wider text-foreground uppercase sm:mt-2.5 sm:text-xl">
               {league.name}

@@ -111,6 +111,16 @@ export interface AuthResponseDto {
   readonly accessToken: string;
 }
 
+export interface LeagueCatchUpProgressDto {
+  readonly inProgress: boolean;
+  readonly completedRounds: number;
+  readonly targetRounds: number;
+  readonly matchesSimulated: number;
+  readonly totalDueMatches: number;
+  readonly percent: number;
+  readonly currentRoundNumber: number;
+}
+
 export interface LeagueSummaryDto {
   readonly id: string;
   readonly name: string;
@@ -132,6 +142,7 @@ export interface LeagueSummaryDto {
   readonly userLastRoundFp: number;
   readonly userAvgFp: number;
   readonly userBudgetMillions: number;
+  readonly catchUpProgress?: LeagueCatchUpProgressDto | null;
 }
 
 export interface PlayerInstanceDto {

@@ -76,12 +76,17 @@ export function LeaguesPage() {
       setCreateOpen(false);
       await refreshSession();
       setActiveLeagueId(res.leagueId);
+      const baseMessage = f(t.leagues.createdToast, {
+        teamName: res.summary.userTeamName,
+        code: res.assignedTeamCode,
+      });
       showToast({
         tone: 'success',
-        message: f(t.leagues.createdToast, {
-          teamName: res.summary.userTeamName,
-          code: res.assignedTeamCode,
-        }),
+        message: res.summary.catchUpProgress?.inProgress
+          ? language === 'es'
+            ? `${baseMessage} Simulando jornadas hasta hoy en segundo plano: ya puedes navegar libremente.`
+            : `${baseMessage} Simulating past rounds in the background — you can browse freely.`
+          : baseMessage,
       });
     },
     onError: (err) => {

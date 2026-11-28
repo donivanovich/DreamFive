@@ -5,6 +5,7 @@ import {
   ChevronDown,
   FlaskConical,
   LayoutDashboard,
+  Loader2,
   LogOut,
   Mail,
   Menu,
@@ -521,6 +522,51 @@ export function AppShell({ children }: { readonly children: ReactNode }) {
         </header>
 
         <main className="mx-auto w-full max-w-[1440px] min-w-0 flex-1 overflow-x-clip px-3 py-4 sm:px-4 sm:py-5 md:px-6 md:py-6">
+          {activeLeague?.catchUpProgress?.inProgress ? (
+            <div
+              role="status"
+              aria-live="polite"
+              className="mb-4 rounded-lg border border-primary/40 bg-primary/10 px-4 py-3 shadow-sm"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold tracking-wider text-foreground uppercase sm:text-sm">
+                      {language === 'es'
+                        ? `Preparando «${activeLeague.name}» hasta la fecha actual…`
+                        : `Simulating "${activeLeague.name}" up to today…`}
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {language === 'es'
+                        ? 'Puedes moverte libremente por todos los apartados mientras se simulan partidos, puntos, lesiones, mercado y correos en segundo plano.'
+                        : 'You can freely browse all sections while matches, points, injuries, market prices, and mail simulate in the background.'}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex shrink-0 items-center gap-2 text-xs font-semibold text-primary tabular-nums">
+                  <span>
+                    {language === 'es' ? 'Jornada' : 'Round'}{' '}
+                    {activeLeague.catchUpProgress.completedRounds}/
+                    {activeLeague.catchUpProgress.targetRounds}
+                  </span>
+                  <span className="text-muted-foreground">·</span>
+                  <span>
+                    {activeLeague.catchUpProgress.matchesSimulated}/
+                    {activeLeague.catchUpProgress.totalDueMatches}{' '}
+                    {language === 'es' ? 'partidos' : 'matches'}
+                  </span>
+                  <Badge variant="primary">{activeLeague.catchUpProgress.percent}%</Badge>
+                </div>
+              </div>
+              <div className="mt-2.5 h-1.5 w-full overflow-hidden rounded-full bg-surface-deep">
+                <div
+                  className="h-full rounded-full bg-primary transition-all duration-500 ease-out"
+                  style={{ width: `${String(Math.max(4, activeLeague.catchUpProgress.percent))}%` }}
+                />
+              </div>
+            </div>
+          ) : null}
           {children}
         </main>
       </div>

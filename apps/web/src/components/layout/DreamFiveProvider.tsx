@@ -1,7 +1,8 @@
 import { ADMIN_SIMULATION_EMAIL, type AuthUserDto } from '@dreamfive/shared';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { useToast } from '@/components/ui/toast-context';
 import {
   DreamFiveStateContext,
   type DreamFiveStateContextValue,
@@ -32,10 +33,12 @@ const FALLBACK_PREFERENCES: UserPreferences = {
 
 export function DreamFiveStateProvider({ children }: { readonly children: ReactNode }) {
   const queryClient = useQueryClient();
+  const { showToast } = useToast();
   const [selectedLeagueId, setSelectedLeagueId] = useState<string | null>(null);
   const [guestAppearance, setGuestAppearance] = useState<AppearanceSettings>(() =>
     readStoredAppearance(),
   );
+  const syncingLeagueIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -74,6 +77,8 @@ export function DreamFiveStateProvider({ children }: { readonly children: ReactN
     queryFn: () => leaguesApi.list(),
     enabled: user !== null,
     staleTime: 15_000,
+    refetchInterval: (query) =>
+      (query.state.data ?? []).some((league) => league.catchUpProgress?.inProgress) ? 2_000 : false,
   });
 
   const pendingInvitationsQuery = useQuery({
@@ -173,6 +178,28 @@ export function DreamFiveStateProvider({ children }: { readonly children: ReactN
     applyAppearanceToDocument(appearance);
     writeStoredAppearance(appearance);
   }, [appearance]);
+
+  useEffect(() => {
+    const prevSyncing = syncingLeagueIdsRef.current;
+    const nextSyncing = new Set<string>();
+
+    for (const league of leagues) {
+      if (league.catchUpProgress?.inProgress) {
+        nextSyncing.add(league.id);
+      } else if (prevSyncing.has(league.id)) {
+        void queryClient.invalidateQueries({ queryKey: ['league', league.id] });
+        showToast({
+          tone: 'success',
+          message:
+            appearance.language === 'es'
+              ? `«${league.name}» ya está sincronizada al día de hoy (Jornada ${String(league.currentRoundNumber)}/${String(league.totalRounds)}).`
+              : `"${league.name}" is now caught up to today (Round ${String(league.currentRoundNumber)}/${String(league.totalRounds)}).`,
+        });
+      }
+    }
+
+    syncingLeagueIdsRef.current = nextSyncing;
+  }, [leagues, queryClient, showToast, appearance.language]);
 
   const updateAppearance = useCallback(
     async (partial: Partial<AppearanceSettings>) => {

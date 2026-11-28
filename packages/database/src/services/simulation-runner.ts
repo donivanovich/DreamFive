@@ -1143,6 +1143,15 @@ export async function simulateRoundForLeague(
   });
 }
 
+export interface CatchUpProgressUpdate {
+  readonly completedRounds: number;
+  readonly targetRounds: number;
+  readonly matchesSimulated: number;
+  readonly totalDueMatches: number;
+  readonly percent: number;
+  readonly currentRoundNumber: number;
+}
+
 export interface CatchUpLeagueResult {
   readonly leagueId: string;
   readonly seasonId: string;
@@ -1168,6 +1177,7 @@ export async function catchUpLeagueToCurrentTime(
   params: {
     readonly leagueId: string;
     readonly asOf?: Date;
+    readonly onProgress?: (progress: CatchUpProgressUpdate) => void | Promise<void>;
   },
 ): Promise<CatchUpLeagueResult> {
   const asOf = params.asOf ?? new Date();
@@ -1203,10 +1213,23 @@ export async function catchUpLeagueToCurrentTime(
   }
 
   const sortedRounds = [...dueByRound.keys()].sort((a, b) => a - b);
+  const totalDueMatches = dueMatches.length;
+  const targetRounds = sortedRounds.length;
   let roundsCompleted = 0;
   let partialRoundsUpdated = 0;
   let matchesSimulated = 0;
   let seasonCompleted = false;
+
+  if (params.onProgress && totalDueMatches > 0) {
+    await params.onProgress({
+      completedRounds: 0,
+      targetRounds,
+      matchesSimulated: 0,
+      totalDueMatches,
+      percent: 0,
+      currentRoundNumber: initialSeason.currentRoundNumber,
+    });
+  }
 
   for (const roundNumber of sortedRounds) {
     const roundDueMatches = dueByRound.get(roundNumber) ?? [];
@@ -1284,6 +1307,18 @@ export async function catchUpLeagueToCurrentTime(
     }
     if (roundOutcome.seasonCompleted) {
       seasonCompleted = true;
+    }
+
+    if (params.onProgress && totalDueMatches > 0) {
+      const percent = Math.min(99, Math.round((matchesSimulated / totalDueMatches) * 100));
+      await params.onProgress({
+        completedRounds: roundsCompleted,
+        targetRounds,
+        matchesSimulated,
+        totalDueMatches,
+        percent,
+        currentRoundNumber: roundNumber,
+      });
     }
   }
 

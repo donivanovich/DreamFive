@@ -1,13 +1,16 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { catchUpLeagueToCurrentTime, instantiateLeague, Prisma } from '@dreamfive/database';
-import type {
-  CreateLeagueInput,
-  LeagueRole,
-  LeagueSummaryDto,
-  SeasonSummaryDto,
+import {
+  type CreateLeagueInput,
+  type LeagueCatchUpProgressDto,
+  type LeagueRole,
+  type LeagueSummaryDto,
+  type SeasonSummaryDto,
+  SOCKET_EVENTS,
 } from '@dreamfive/shared';
 
 import { PrismaService } from '../../database/prisma.service.js';
+import { RealtimeService } from '../../realtime/realtime.service.js';
 
 export interface LeagueParticipantDto {
   readonly userId: string;
@@ -33,7 +36,13 @@ export interface LeagueDetailDto {
 
 @Injectable()
 export class LeaguesService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(LeaguesService.name);
+  private readonly catchUpProgressByLeague = new Map<string, LeagueCatchUpProgressDto>();
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly realtime: RealtimeService,
+  ) {}
 
   async listUserLeagues(userId: string): Promise<readonly LeagueSummaryDto[]> {
     const memberships = await this.prisma.client.leagueMember.findMany({
@@ -92,10 +101,58 @@ export class LeaguesService {
         userLastRoundFp: standing?.lastRoundFp ?? 0,
         userAvgFp: standing?.avgFp ?? 0,
         userBudgetMillions: m.team.budgetMillions,
+        catchUpProgress: this.catchUpProgressByLeague.get(m.league.id) ?? null,
       });
     }
 
     return summaries;
+  }
+
+  private emitCatchUpRealtimeEvents(leagueId: string, roundNumber?: number): void {
+    const timestamp = new Date().toISOString();
+    const events = [
+      SOCKET_EVENTS.roundCompleted,
+      SOCKET_EVENTS.standingsUpdated,
+      SOCKET_EVENTS.marketUpdated,
+      SOCKET_EVENTS.mailUpdated,
+      SOCKET_EVENTS.clockUpdated,
+    ] as const;
+    for (const eventType of events) {
+      this.realtime.emitLeagueEvent({
+        leagueId,
+        eventType,
+        ...(roundNumber !== undefined ? { roundNumber } : {}),
+        timestamp,
+      });
+    }
+  }
+
+  private startBackgroundCatchUp(leagueId: string, asOf: Date): void {
+    void catchUpLeagueToCurrentTime(this.prisma.client, {
+      leagueId,
+      asOf,
+      onProgress: (progress) => {
+        this.catchUpProgressByLeague.set(leagueId, {
+          inProgress: true,
+          ...progress,
+        });
+        this.emitCatchUpRealtimeEvents(leagueId, progress.currentRoundNumber);
+      },
+    })
+      .then((result) => {
+        this.logger.log(
+          `Puesta al día completada para liga ${leagueId}: ${String(result.roundsCompleted)} jornadas, ${String(result.matchesSimulated)} partidos hasta ${result.gameClockAt}`,
+        );
+      })
+      .catch((error: unknown) => {
+        this.logger.error(
+          `Error en la puesta al día asíncrona de la liga ${leagueId}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      })
+      .finally(() => {
+        this.catchUpProgressByLeague.delete(leagueId);
+        this.emitCatchUpRealtimeEvents(leagueId);
+      });
   }
 
   async createLeague(
@@ -126,10 +183,35 @@ export class LeaguesService {
       });
 
       if (process.env['NODE_ENV'] !== 'test') {
-        await catchUpLeagueToCurrentTime(this.prisma.client, {
-          leagueId: created.leagueId,
-          asOf: new Date(),
+        const asOf = new Date();
+        const dueMatches = await this.prisma.client.match.findMany({
+          where: {
+            leagueId: created.leagueId,
+            seasonId: created.seasonId,
+            status: 'SCHEDULED',
+            scheduledAt: { lte: asOf },
+          },
+          select: { roundNumber: true },
         });
+
+        if (dueMatches.length > 0) {
+          const targetRounds = new Set(dueMatches.map((m) => m.roundNumber)).size;
+          this.catchUpProgressByLeague.set(created.leagueId, {
+            inProgress: true,
+            completedRounds: 0,
+            targetRounds,
+            matchesSimulated: 0,
+            totalDueMatches: dueMatches.length,
+            percent: 0,
+            currentRoundNumber: 0,
+          });
+          this.startBackgroundCatchUp(created.leagueId, asOf);
+        } else {
+          await this.prisma.client.league.updateMany({
+            where: { id: created.leagueId, gameClockAt: { lt: asOf } },
+            data: { gameClockAt: asOf },
+          });
+        }
       }
 
       const list = await this.listUserLeagues(userId);
