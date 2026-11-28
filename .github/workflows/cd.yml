@@ -222,28 +222,30 @@ jobs:
             infrastructure/nginx/default.conf
           sparse-checkout-cone-mode: false
 
-      - name: Conectar GitHub Actions a Tailscale
-        uses: tailscale/github-action@v4
-        with:
-          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
-          tags: tag:ci
-          ping: 100.108.96.126
-
-      - name: Validar secretos obligatorios de despliegue SSH
+      - name: Validar secretos obligatorios de Tailscale y despliegue SSH
         env:
+          TS_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          TS_OAUTH_SECRET: ${{ secrets.TS_OAUTH_SECRET }}
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           DEPLOY_SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}
         run: |
-          for var_name in DEPLOY_HOST DEPLOY_USER DEPLOY_PATH DEPLOY_SSH_KEY DEPLOY_SSH_KNOWN_HOSTS; do
+          for var_name in TS_OAUTH_CLIENT_ID TS_OAUTH_SECRET DEPLOY_HOST DEPLOY_USER DEPLOY_PATH DEPLOY_SSH_KEY DEPLOY_SSH_KNOWN_HOSTS; do
             if [ -z "${!var_name}" ]; then
               echo "Falta el secreto obligatorio: ${var_name}" >&2
               exit 1
             fi
           done
+
+      - name: Conectar GitHub Actions a Tailscale
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+          ping: ${{ secrets.DEPLOY_HOST }}
 
       - name: Configurar clave SSH temporal con permisos mínimos
         env:
@@ -256,6 +258,28 @@ jobs:
           chmod 600 "${RUNNER_TEMP}/.ssh/deploy_key"
           printf '%s\n' "${DEPLOY_SSH_KNOWN_HOSTS}" > "${RUNNER_TEMP}/.ssh/known_hosts"
           chmod 644 "${RUNNER_TEMP}/.ssh/known_hosts"
+
+      - name: Verificar conectividad TCP y autenticación SSH con Raspberry Pi 5
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ vars.DEPLOY_PORT || '22' }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          set -euo pipefail
+          if ! timeout 10 bash -c 'exec 3<>"/dev/tcp/$1/$2"' _ "${DEPLOY_HOST}" "${DEPLOY_PORT}" 2>/dev/null; then
+            echo "ERROR: Tailscale conectado, pero el puerto TCP/${DEPLOY_PORT} no es alcanzable en el host de despliegue." >&2
+            echo "Revisa ACL de Tailscale para tag:ci, firewall de la Raspberry Pi y estado del servicio sshd." >&2
+            exit 1
+          fi
+          ssh \
+            -i "${RUNNER_TEMP}/.ssh/deploy_key" \
+            -o UserKnownHostsFile="${RUNNER_TEMP}/.ssh/known_hosts" \
+            -o StrictHostKeyChecking=yes \
+            -o BatchMode=yes \
+            -o ConnectTimeout=15 \
+            -p "${DEPLOY_PORT}" \
+            "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            'echo "SSH verificado en $(hostname) ($(uname -m))" && docker --version && docker compose version'
 
       - name: Autenticar Raspberry Pi 5 en GHCR (sin exponer token)
         env:
@@ -270,6 +294,8 @@ jobs:
             -i "${RUNNER_TEMP}/.ssh/deploy_key" \
             -o UserKnownHostsFile="${RUNNER_TEMP}/.ssh/known_hosts" \
             -o StrictHostKeyChecking=yes \
+            -o BatchMode=yes \
+            -o ConnectTimeout=15 \
             -p "${DEPLOY_PORT}" \
             "${DEPLOY_USER}@${DEPLOY_HOST}" \
             docker login ghcr.io -u "${GHCR_USERNAME}" --password-stdin
@@ -286,6 +312,8 @@ jobs:
             -i "${RUNNER_TEMP}/.ssh/deploy_key" \
             -o UserKnownHostsFile="${RUNNER_TEMP}/.ssh/known_hosts" \
             -o StrictHostKeyChecking=yes \
+            -o BatchMode=yes \
+            -o ConnectTimeout=15 \
             -p "${DEPLOY_PORT}" \
             "${DEPLOY_USER}@${DEPLOY_HOST}" \
             mkdir -p "${DEPLOY_PATH}/infrastructure/nginx"
@@ -293,6 +321,8 @@ jobs:
             -i "${RUNNER_TEMP}/.ssh/deploy_key" \
             -o UserKnownHostsFile="${RUNNER_TEMP}/.ssh/known_hosts" \
             -o StrictHostKeyChecking=yes \
+            -o BatchMode=yes \
+            -o ConnectTimeout=15 \
             -P "${DEPLOY_PORT}" \
             docker-compose.prod.yml \
             "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/.docker-compose.prod.yml.next"
@@ -300,6 +330,8 @@ jobs:
             -i "${RUNNER_TEMP}/.ssh/deploy_key" \
             -o UserKnownHostsFile="${RUNNER_TEMP}/.ssh/known_hosts" \
             -o StrictHostKeyChecking=yes \
+            -o BatchMode=yes \
+            -o ConnectTimeout=15 \
             -P "${DEPLOY_PORT}" \
             infrastructure/nginx/default.conf \
             "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/infrastructure/nginx/.default.conf.next"
@@ -321,6 +353,8 @@ jobs:
             -i "${RUNNER_TEMP}/.ssh/deploy_key" \
             -o UserKnownHostsFile="${RUNNER_TEMP}/.ssh/known_hosts" \
             -o StrictHostKeyChecking=yes \
+            -o BatchMode=yes \
+            -o ConnectTimeout=15 \
             -p "${DEPLOY_PORT}" \
             "${DEPLOY_USER}@${DEPLOY_HOST}" \
             bash -s -- \
