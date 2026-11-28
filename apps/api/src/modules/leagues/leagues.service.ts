@@ -1,5 +1,5 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { instantiateLeague, Prisma } from '@dreamfive/database';
+import { catchUpLeagueToCurrentTime, instantiateLeague, Prisma } from '@dreamfive/database';
 import type {
   CreateLeagueInput,
   LeagueRole,
@@ -122,8 +122,15 @@ export class LeaguesService {
       const created = await instantiateLeague(this.prisma.client, {
         name: input.name.trim(),
         presidentUserId: userId,
-        marketMode: input.marketMode,
+        marketMode: 'LEAGUE_ISOLATED',
       });
+
+      if (process.env['NODE_ENV'] !== 'test') {
+        await catchUpLeagueToCurrentTime(this.prisma.client, {
+          leagueId: created.leagueId,
+          asOf: new Date(),
+        });
+      }
 
       const list = await this.listUserLeagues(userId);
       const summary = list.find((l) => l.id === created.leagueId);

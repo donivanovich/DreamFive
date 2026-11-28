@@ -16,7 +16,7 @@ import { useToast } from '@/components/ui/toast-context';
 import { useDreamFiveState } from '@/hooks/use-dreamfive-state';
 import { useI18n } from '@/hooks/use-i18n';
 import { formatStatNumber } from '@/lib/formatters';
-import { translateInvitationStatus, translateLeagueRole, translateMarketMode } from '@/lib/i18n';
+import { translateInvitationStatus, translateLeagueRole } from '@/lib/i18n';
 import { invitationsApi, leaguesApi, seasonsApi, usersApi } from '@/services/dreamfive-api';
 
 export function LeaguesPage() {
@@ -34,9 +34,6 @@ export function LeaguesPage() {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [leagueName, setLeagueName] = useState('');
-  const [marketMode, setMarketMode] = useState<'LEAGUE_ISOLATED' | 'GLOBAL_HYBRID'>(
-    'LEAGUE_ISOLATED',
-  );
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteTag, setInviteTag] = useState('');
   const [managerSearch, setManagerSearch] = useState('');
@@ -72,7 +69,7 @@ export function LeaguesPage() {
     mutationFn: () =>
       leaguesApi.create({
         name: leagueName.trim(),
-        marketMode,
+        marketMode: 'LEAGUE_ISOLATED',
       }),
     onSuccess: async (res) => {
       setLeagueName('');
@@ -336,8 +333,6 @@ export function LeaguesPage() {
                 {f(t.leagues.leagueDetailTitle, { leagueName: activeLeague.name })}
               </CardTitle>
               <p className="mt-1 text-xs text-muted-foreground">
-                {t.leagues.marketModeLabel}:{' '}
-                {translateMarketMode(activeLeague.marketMode, language)} ·{' '}
                 {activeLeague.participantsCount}/{activeLeague.maxParticipants}{' '}
                 {t.leagues.humanParticipants}
               </p>
@@ -463,28 +458,6 @@ export function LeaguesPage() {
               maxLength={64}
               required
             />
-          </div>
-
-          <div className="space-y-1.5">
-            <p className="text-xs font-semibold uppercase">{t.leagues.marketModelLabel}</p>
-            <div className="grid grid-cols-2 gap-2">
-              {(['LEAGUE_ISOLATED', 'GLOBAL_HYBRID'] as const).map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => {
-                    setMarketMode(mode);
-                  }}
-                  className={
-                    marketMode === mode
-                      ? 'cursor-pointer rounded-md border border-primary bg-primary/15 px-3 py-2 text-xs font-semibold text-primary'
-                      : 'cursor-pointer rounded-md border border-border bg-surface-deep px-3 py-2 text-xs text-muted-foreground'
-                  }
-                >
-                  {translateMarketMode(mode, language)}
-                </button>
-              ))}
-            </div>
           </div>
 
           <div className="flex justify-end gap-2">

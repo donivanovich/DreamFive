@@ -80,7 +80,7 @@ test.describe('DreamFive Full Stack E2E', () => {
         .getByRole('dialog')
         .getByRole('button', { name: /^Create league$/i })
         .click();
-      await expect(page.getByText(/League created cleanly/i)).toBeVisible({ timeout: 20_000 });
+      await expect(page.getByText(/League created cleanly/i)).toBeVisible({ timeout: 60_000 });
     } else {
       await expect(
         page

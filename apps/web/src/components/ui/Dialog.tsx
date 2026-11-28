@@ -19,6 +19,11 @@ export function ModalDialog({
   children,
 }: ModalDialogProps) {
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     if (!open) {
@@ -35,11 +40,13 @@ export function ModalDialog({
       body.style.paddingRight = `${String(scrollbarWidth)}px`;
     }
 
-    panelRef.current?.focus({ preventScroll: true });
+    if (panelRef.current && !panelRef.current.contains(document.activeElement)) {
+      panelRef.current.focus({ preventScroll: true });
+    }
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        onClose();
+        onCloseRef.current();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -48,7 +55,7 @@ export function ModalDialog({
       body.style.overflow = prevOverflow;
       body.style.paddingRight = prevPaddingRight;
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) {
     return null;

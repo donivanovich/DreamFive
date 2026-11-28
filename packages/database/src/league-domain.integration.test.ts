@@ -1,10 +1,12 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 
+import { resolveZonedDateIso } from '@dreamfive/simulation-engine';
 import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 
 import {
   advanceSeasonForLeague,
+  catchUpLeagueToCurrentTime,
   createAndEvaluateTransferOffer,
   createPrismaClient,
   ensureCatalogSeeded,
@@ -18,6 +20,7 @@ import {
   type PrismaClient,
   recalculateAndUpgradeExistingLeagues,
   repriceLeagueMarket,
+  resolveLeagueTimeZone,
   simulateRoundForLeague,
   simulateScheduledMatchAndProgress,
   syncLeagueClockToRealTime,
@@ -945,6 +948,62 @@ describeIfDb(
         where: { id: samplePlayer.id },
       });
       expect(afterSecond.priceMillions).toBe(30);
+    }, 60_000);
+
+    it('al crear una liga y ponerla al día con fecha/hora exacta, simula jornadas pasadas, parciales, mercado y correos', async () => {
+      const pres = await createTestUser('catchup_creation');
+      const timeZone = resolveLeagueTimeZone();
+      const league = await instantiateLeague(prisma, {
+        name: 'Liga Catch-Up Exacto',
+        presidentUserId: pres.id,
+        simulationSeed: 'catchup-exact-time-seed',
+        calendarYear: 2026,
+        calendarMonth: 11,
+      });
+      createdLeagueIds.push(league.leagueId);
+
+      // Día 2 a las 14:00 -> día 1 completo (J1 y J2 = 30 partidos) + J3 completa/parcial hasta las 14:00
+      const asOf = new Date(
+        resolveZonedDateIso({
+          year: 2026,
+          month: 11,
+          dayOfMonth: 2,
+          hour: 14,
+          minute: 0,
+          timeZone,
+        }),
+      );
+
+      const catchUp = await catchUpLeagueToCurrentTime(prisma, {
+        leagueId: league.leagueId,
+        asOf,
+      });
+
+      expect(catchUp.roundsCompleted).toBeGreaterThanOrEqual(2);
+      expect(catchUp.matchesSimulated).toBeGreaterThan(30);
+
+      const [reloadedLeague, season, finalMatches, futureDueMatches, marketEntries, mails] =
+        await Promise.all([
+          prisma.league.findUniqueOrThrow({ where: { id: league.leagueId } }),
+          prisma.season.findUniqueOrThrow({ where: { id: league.seasonId } }),
+          prisma.match.count({ where: { leagueId: league.leagueId, status: 'FINAL' } }),
+          prisma.match.count({
+            where: {
+              leagueId: league.leagueId,
+              status: 'SCHEDULED',
+              scheduledAt: { lte: asOf },
+            },
+          }),
+          prisma.marketHistory.count({ where: { leagueId: league.leagueId } }),
+          prisma.leagueMail.count({ where: { leagueId: league.leagueId } }),
+        ]);
+
+      expect(reloadedLeague.gameClockAt.getTime()).toBe(asOf.getTime());
+      expect(season.currentRoundNumber).toBeGreaterThanOrEqual(2);
+      expect(finalMatches).toBe(catchUp.matchesSimulated);
+      expect(futureDueMatches).toBe(0);
+      expect(marketEntries).toBeGreaterThan(0);
+      expect(mails).toBeGreaterThan(0);
     }, 60_000);
   },
 );

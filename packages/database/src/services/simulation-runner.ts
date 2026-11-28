@@ -1143,6 +1143,171 @@ export async function simulateRoundForLeague(
   });
 }
 
+export interface CatchUpLeagueResult {
+  readonly leagueId: string;
+  readonly seasonId: string;
+  readonly roundsCompleted: number;
+  readonly partialRoundsUpdated: number;
+  readonly matchesSimulated: number;
+  readonly seasonCompleted: boolean;
+  readonly gameClockAt: string;
+}
+
+/**
+ * Simula cronológicamente todos los partidos cuya hora programada (`scheduledAt`)
+ * ya ha vencido hasta `asOf` (fecha y hora exactas de creación o puesta al día):
+ * - Jornadas ya completadas (15/15 partidos vencidos): simula todos los partidos con
+ *   su `scheduledAt`, actualiza puntos/clasificación, lesiones, correos, mercado y CPU.
+ * - Jornada parcialmente vencida (p. ej. creación a las 14:00): simula únicamente los
+ *   partidos vencidos hasta `asOf`, recalcula clasificación/puntos parciales y deja el
+ *   resto en `SCHEDULED` para el worker 24/7.
+ * - Actualiza `league.gameClockAt` a `asOf` para sincronizar la liga con el reloj real.
+ */
+export async function catchUpLeagueToCurrentTime(
+  prisma: PrismaClient,
+  params: {
+    readonly leagueId: string;
+    readonly asOf?: Date;
+  },
+): Promise<CatchUpLeagueResult> {
+  const asOf = params.asOf ?? new Date();
+  const initialSeason = await prisma.season.findFirst({
+    where: { leagueId: params.leagueId, status: 'ACTIVE' },
+    orderBy: { seasonNumber: 'desc' },
+  });
+
+  if (!initialSeason) {
+    throw new Error(`No hay temporada activa para la liga ${params.leagueId}`);
+  }
+
+  const dueMatches = await prisma.match.findMany({
+    where: {
+      leagueId: params.leagueId,
+      seasonId: initialSeason.id,
+      status: 'SCHEDULED',
+      scheduledAt: { lte: asOf },
+    },
+    select: {
+      id: true,
+      roundNumber: true,
+      scheduledAt: true,
+    },
+    orderBy: [{ roundNumber: 'asc' }, { scheduledAt: 'asc' }],
+  });
+
+  const dueByRound = new Map<number, { readonly id: string; readonly scheduledAt: Date }[]>();
+  for (const match of dueMatches) {
+    const bucket = dueByRound.get(match.roundNumber) ?? [];
+    bucket.push({ id: match.id, scheduledAt: match.scheduledAt });
+    dueByRound.set(match.roundNumber, bucket);
+  }
+
+  const sortedRounds = [...dueByRound.keys()].sort((a, b) => a - b);
+  let roundsCompleted = 0;
+  let partialRoundsUpdated = 0;
+  let matchesSimulated = 0;
+  let seasonCompleted = false;
+
+  for (const roundNumber of sortedRounds) {
+    const roundDueMatches = dueByRound.get(roundNumber) ?? [];
+    if (roundDueMatches.length === 0) {
+      continue;
+    }
+
+    const roundOutcome = await withLeagueTxLock(prisma, params.leagueId, async (tx) => {
+      const season = await tx.season.findUnique({ where: { id: initialSeason.id } });
+      if (!season) {
+        throw new Error(`Temporada ${initialSeason.id} no encontrada durante la puesta al día.`);
+      }
+
+      let simulatedInRound = 0;
+      let latestMatchAt = season.startedAt;
+
+      for (const due of roundDueMatches) {
+        if (due.scheduledAt > latestMatchAt) {
+          latestMatchAt = due.scheduledAt;
+        }
+        const simRes = await simulateSingleMatchInTx(tx, {
+          leagueId: params.leagueId,
+          matchId: due.id,
+          simulatedAt: due.scheduledAt,
+        });
+        if (!simRes.alreadyCompleted) {
+          simulatedInRound += 1;
+        }
+      }
+
+      const remainingInRound = await tx.match.count({
+        where: {
+          leagueId: params.leagueId,
+          seasonId: season.id,
+          roundNumber,
+          status: 'SCHEDULED',
+        },
+      });
+
+      if (remainingInRound === 0) {
+        const completion = await finalizeRoundCompletionInTx(tx, {
+          leagueId: params.leagueId,
+          season,
+          roundNumber,
+          latestClockAt: latestMatchAt,
+          runPostRoundEconomy: simulatedInRound > 0,
+        });
+        return {
+          simulatedInRound,
+          completedRound: true,
+          seasonCompleted: completion.seasonCompleted,
+        };
+      }
+
+      if (simulatedInRound > 0) {
+        await recalculateRoundStandingsInTx(tx, {
+          leagueId: params.leagueId,
+          seasonId: season.id,
+          roundNumber,
+        });
+      }
+
+      return {
+        simulatedInRound,
+        completedRound: false,
+        seasonCompleted: false,
+      };
+    });
+
+    matchesSimulated += roundOutcome.simulatedInRound;
+    if (roundOutcome.completedRound) {
+      roundsCompleted += 1;
+    } else if (roundOutcome.simulatedInRound > 0) {
+      partialRoundsUpdated += 1;
+    }
+    if (roundOutcome.seasonCompleted) {
+      seasonCompleted = true;
+    }
+  }
+
+  await prisma.league.updateMany({
+    where: {
+      id: params.leagueId,
+      gameClockAt: { lt: asOf },
+    },
+    data: {
+      gameClockAt: asOf,
+    },
+  });
+
+  return {
+    leagueId: params.leagueId,
+    seasonId: initialSeason.id,
+    roundsCompleted,
+    partialRoundsUpdated,
+    matchesSimulated,
+    seasonCompleted,
+    gameClockAt: asOf.toISOString(),
+  };
+}
+
 /**
  * Recalcula precios de mercado de los 540 jugadores activos de una liga concreta dentro de una transacción.
  */
